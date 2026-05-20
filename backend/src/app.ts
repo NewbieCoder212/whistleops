@@ -43,13 +43,14 @@ app.use(
 
 app.use("*", logger());
 
-app.get("/health", (c) =>
-  c.json({
-    status: "ok",
-    supabase: isSupabaseConfigured() ? "ready" : "missing-env-vars",
-    resend: isResendConfigured() ? "ready" : "missing-env-vars",
-  })
-);
+const healthPayload = () => ({
+  status: "ok",
+  supabase: isSupabaseConfigured() ? "ready" : "missing-env-vars",
+  resend: isResendConfigured() ? "ready" : "missing-env-vars",
+});
+
+app.get("/health", (c) => c.json(healthPayload()));
+app.get("/api/health", (c) => c.json(healthPayload()));
 
 app.route("/api/profiles", profilesRouter);
 app.route("/api/games", gamesRouter);
