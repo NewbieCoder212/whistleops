@@ -2,7 +2,6 @@
 node_modules/
 
 # build output
-api/index.js
 dist/
 dist-ssr/
 out/
