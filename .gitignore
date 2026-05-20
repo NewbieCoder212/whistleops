@@ -1,0 +1,36 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+dist-ssr/
+out/
+*.tgz
+
+# env / secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# logs & caches
+logs/
+*.log
+.cache/
+.eslintcache
+*.tsbuildinfo
+coverage/
+*.lcov
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Vite
+webapp/node_modules/.vite/
+
+# server logs (local dev)
+server.log
+studio.log

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "buildCommand": "cd webapp && bun install && bun run build",
+  "outputDirectory": "webapp/dist",
+  "installCommand": "bun install --cwd webapp && bun install --cwd backend",
+  "framework": null,
+  "functions": {
+    "backend/src/index.ts": {
+      "runtime": "@vercel/node@3.2.0",
+      "memory": 1024,
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/backend/src/index.ts" },
+    { "source": "/health", "destination": "/backend/src/index.ts" },
+    { "source": "/((?!api|health|assets|favicon\\.ico|robots\\.txt|.*\\..*).*)", "destination": "/index.html" }
+  ]
+}

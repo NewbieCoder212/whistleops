@@ -1,0 +1,133 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* WhistleOps — New Brunswick Hockey design system (HSL components only). */
+
+@layer base {
+  :root {
+    /* Ice rink surface — clean, bright workspace */
+    --background: 210 33% 98%;
+    --foreground: 212 66% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 212 66% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 212 66% 12%;
+
+    /* Deep navy — headers, primary actions, admin chrome */
+    --primary: 212 66% 12%;
+    --primary-foreground: 210 40% 98%;
+
+    /* Royal blue — active states, confirmations, metrics */
+    --secondary: 207 100% 30%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 212 25% 38%;
+
+    /* Ice silver — borders, dividers, inactive surfaces */
+    --accent: 210 40% 96%;
+    --accent-foreground: 212 66% 12%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 207 100% 30%;
+
+    --radius: 0.5rem;
+
+    /* NB brand accents */
+    --nb-gold: 41 67% 48%;
+    --nb-navy: 212 66% 12%;
+    --nb-royal: 207 100% 30%;
+    --nb-ice: 210 40% 96%;
+
+    --sidebar-background: 212 66% 12%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 207 100% 30%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 212 50% 18%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 212 40% 22%;
+    --sidebar-ring: 207 100% 40%;
+  }
+
+  .dark {
+    --background: 220 18% 7%;
+    --foreground: 210 40% 98%;
+
+    --card: 220 16% 10%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 220 16% 10%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 207 100% 40%;
+    --primary-foreground: 220 18% 7%;
+
+    --secondary: 207 80% 35%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 220 14% 16%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 220 14% 18%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62% 40%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 220 14% 18%;
+    --input: 220 14% 18%;
+    --ring: 207 100% 45%;
+
+    --sidebar-background: 220 18% 7%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 207 100% 40%;
+    --sidebar-primary-foreground: 220 18% 7%;
+    --sidebar-accent: 220 14% 14%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 220 14% 16%;
+    --sidebar-ring: 207 100% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: "Barlow Condensed", "Barlow", system-ui, sans-serif;
+    letter-spacing: -0.02em;
+  }
+}
+
+/* Login / marketing ice-sheet texture */
+.nb-ice-gradient {
+  background: linear-gradient(
+    165deg,
+    hsl(212 66% 12%) 0%,
+    hsl(207 100% 22%) 45%,
+    hsl(210 33% 98%) 100%
+  );
+}
+
+.nb-ice-pattern {
+  background-image:
+    linear-gradient(hsl(0 0% 100% / 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(0 0% 100% / 0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
