@@ -9,7 +9,8 @@
 import { getAccessToken } from "./supabase";
 import { DEFAULT_WORKSPACE_ID, getActiveWorkspaceId } from "./workspace";
 
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || "";
+/** In production always use same-origin /api; ignore VITE_BACKEND_URL if set on Vercel by mistake. */
+const API_BASE_URL = import.meta.env.PROD ? "" : import.meta.env.VITE_BACKEND_URL || "";
 
 export class ApiError extends Error {
   constructor(

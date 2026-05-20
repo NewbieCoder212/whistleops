@@ -4,7 +4,7 @@ import { Shield, Loader2, AlertCircle, CalendarCheck, Users, DollarSign } from "
 import { useAuth } from "@/hooks/useAuth";
 import { useTranslation } from "@/i18n/I18nProvider";
 import { LanguageToggle } from "@/components/LanguageToggle";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,10 +49,21 @@ export default function Login() {
         : "/dashboard/schedule";
       navigate(from && from !== "/login" ? from : dest, { replace: true });
     } catch (err) {
-      const msg =
-        err instanceof Error && err.message.includes("404")
-          ? "Your account signed in, but no profile was found. Ask an admin to add you in Officials."
-          : "Signed in, but the API could not load your profile. Make sure the backend is running on port 3000 (bun run dev in the backend folder).";
+      let msg = "Signed in, but your profile could not be loaded. Please try again.";
+      if (err instanceof ApiError) {
+        if (err.status === 404) {
+          msg =
+            "Your account signed in, but no profile was found. Ask an admin to add you in Officials.";
+        } else if (err.status === 401) {
+          msg =
+            "Signed in, but the server could not verify your session. On Vercel, set SUPABASE_ANON_KEY to the same value as VITE_SUPABASE_ANON_KEY, then redeploy.";
+        } else {
+          msg = err.message || msg;
+        }
+      } else if (import.meta.env.DEV) {
+        msg =
+          "Signed in, but the API could not load your profile. Make sure the backend is running on port 3000 (bun run dev in the backend folder).";
+      }
       setError(msg);
     }
     setLoading(false);
