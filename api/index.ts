@@ -1,4 +1,1 @@
-import { handle } from "hono/vercel";
-import { app } from "../backend/src/index";
-
-export default handle(app);
+export { default } from "../backend/src/vercel";

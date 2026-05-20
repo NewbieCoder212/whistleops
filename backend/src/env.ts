@@ -1,13 +1,17 @@
 import { z } from "zod";
 import { readFileSync } from "fs";
-import { resolve } from "path";
+import { dirname, resolve } from "path";
+import { fileURLToPath } from "url";
 
 // Bun's --hot mode doesn't re-read .env on module hot-swap, so we load it
-// manually here. This ensures env vars added after the process started are
-// picked up on the next hot reload without a full process restart.
+// manually here. Works on Bun (import.meta.dir) and Node/Vercel (fileURLToPath).
 function loadDotEnv() {
   try {
-    const content = readFileSync(resolve(import.meta.dir, "../.env"), "utf-8");
+    const baseDir =
+      typeof import.meta.dir === "string"
+        ? import.meta.dir
+        : dirname(fileURLToPath(import.meta.url));
+    const content = readFileSync(resolve(baseDir, "../.env"), "utf-8");
     for (const line of content.split("\n")) {
       const trimmed = line.trim();
       if (!trimmed || trimmed.startsWith("#")) continue;
@@ -35,9 +39,22 @@ const envSchema = z.object({
   GAMESHEET_WEBHOOK_SECRET: z.string().optional(),
 });
 
+function emptyToUndefined(value: unknown): unknown {
+  return typeof value === "string" && value.trim() === "" ? undefined : value;
+}
+
 function validateEnv() {
   try {
-    const parsed = envSchema.parse(process.env);
+    const parsed = envSchema.parse({
+      PORT: emptyToUndefined(process.env.PORT),
+      NODE_ENV: emptyToUndefined(process.env.NODE_ENV),
+      SUPABASE_URL: emptyToUndefined(process.env.SUPABASE_URL),
+      SUPABASE_ANON_KEY: emptyToUndefined(process.env.SUPABASE_ANON_KEY),
+      SUPABASE_SERVICE_ROLE_KEY: emptyToUndefined(process.env.SUPABASE_SERVICE_ROLE_KEY),
+      RESEND_API_KEY: emptyToUndefined(process.env.RESEND_API_KEY),
+      RESEND_FROM_EMAIL: emptyToUndefined(process.env.RESEND_FROM_EMAIL),
+      GAMESHEET_WEBHOOK_SECRET: emptyToUndefined(process.env.GAMESHEET_WEBHOOK_SECRET),
+    });
     const hasSupabase = !!(
       parsed.SUPABASE_URL &&
       parsed.SUPABASE_ANON_KEY &&
@@ -59,7 +76,8 @@ function validateEnv() {
       error.issues.forEach((err) => {
         console.error(`  - ${err.path.join(".")}: ${err.message}`);
       });
-      process.exit(1);
+      // Do not process.exit in serverless — it crashes every invocation.
+      return envSchema.parse({});
     }
     throw error;
   }
