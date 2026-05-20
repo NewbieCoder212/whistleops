@@ -5,7 +5,16 @@
   "outputDirectory": "webapp/dist",
   "installCommand": "bun install && bun install --cwd webapp && bun install --cwd backend",
   "framework": null,
+  "functions": {
+    "api/index.ts": {
+      "runtime": "@vercel/node@3.2.0",
+      "memory": 1024,
+      "maxDuration": 30
+    }
+  },
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api" },
+    { "source": "/health", "destination": "/api" },
     { "source": "/((?!api|health|assets|favicon\\.ico|robots\\.txt|.*\\..*).*)", "destination": "/index.html" }
   ]
 }
