@@ -18,6 +18,7 @@ import { earningsRouter } from "./routes/earnings";
 import { zonesRouter } from "./routes/zones";
 import { incidentsRouter } from "./routes/incidents";
 import { gamesheetWebhookRouter } from "./routes/webhooks/gamesheet";
+import { workspacesRouter } from "./routes/workspaces";
 
 const app = new Hono();
 
@@ -38,7 +39,7 @@ app.use(
   cors({
     origin: (origin) => (origin && allowed.some((re) => re.test(origin)) ? origin : null),
     credentials: true,
-    allowHeaders: ["Content-Type", "Authorization"],
+    allowHeaders: ["Content-Type", "Authorization", "X-Workspace-Id"],
   })
 );
 
@@ -67,6 +68,7 @@ app.route("/api/earnings", earningsRouter);
 app.route("/api/zones", zonesRouter);
 app.route("/api/incidents", incidentsRouter);
 app.route("/api/webhooks/gamesheet", gamesheetWebhookRouter);
+app.route("/api/workspaces", workspacesRouter);
 
 // Catch-all for unknown API routes
 app.notFound((c) =>

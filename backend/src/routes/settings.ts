@@ -6,14 +6,19 @@ import { DEFAULT_PAY_RATES_MATRIX } from "../lib/payCalculation";
 import { DEFAULT_POSITION_LABELS } from "../lib/positionLabels";
 import { DEFAULT_ROSTER_DISPLAY_FIELDS, IncidentNotifyEmailsSchema } from "../types";
 import { parseJson } from "../lib/validate";
-import { requireAdmin } from "../middleware/auth";
+import { requireWorkspaceStaff } from "../middleware/auth";
+import { requireWorkspaceHeader } from "../middleware/workspaceScope";
 import { SettingUpsertSchema } from "../types";
 
 const settingsRouter = new Hono();
+settingsRouter.use("*", requireWorkspaceHeader);
 
 settingsRouter.get("/", async (c) =>
   runRoute(c, async () => {
-    const { data, error } = await serviceDb().from("settings").select("*");
+    const { data, error } = await serviceDb()
+      .from("settings")
+      .select("*")
+      .eq("workspace_id", c.get("workspaceId"));
     if (error) return dbError(c, error);
     return data ?? [];
   })
@@ -21,9 +26,11 @@ settingsRouter.get("/", async (c) =>
 
 settingsRouter.get("/:key", async (c) =>
   runRoute(c, async () => {
+    const workspaceId = c.get("workspaceId");
     const { data, error } = await serviceDb()
       .from("settings")
       .select("*")
+      .eq("workspace_id", workspaceId)
       .eq("key", c.req.param("key"))
       .maybeSingle();
     if (error) return dbError(c, error);
@@ -32,6 +39,7 @@ settingsRouter.get("/:key", async (c) =>
       if (key === "pay_rates") {
         return {
           key: "pay_rates",
+          workspace_id: workspaceId,
           value: DEFAULT_PAY_RATES_MATRIX,
           updated_at: new Date().toISOString(),
         };
@@ -39,6 +47,7 @@ settingsRouter.get("/:key", async (c) =>
       if (key === "position_labels") {
         return {
           key: "position_labels",
+          workspace_id: workspaceId,
           value: DEFAULT_POSITION_LABELS,
           updated_at: new Date().toISOString(),
         };
@@ -46,6 +55,7 @@ settingsRouter.get("/:key", async (c) =>
       if (key === "roster_display_fields") {
         return {
           key: "roster_display_fields",
+          workspace_id: workspaceId,
           value: DEFAULT_ROSTER_DISPLAY_FIELDS,
           updated_at: new Date().toISOString(),
         };
@@ -53,6 +63,7 @@ settingsRouter.get("/:key", async (c) =>
       if (key === "availability_window") {
         return {
           key: "availability_window",
+          workspace_id: workspaceId,
           value: parseAvailabilityWindow(null),
           updated_at: new Date().toISOString(),
         };
@@ -60,6 +71,7 @@ settingsRouter.get("/:key", async (c) =>
       if (key === "incident_notify_emails") {
         return {
           key: "incident_notify_emails",
+          workspace_id: workspaceId,
           value: IncidentNotifyEmailsSchema.parse({}),
           updated_at: new Date().toISOString(),
         };
@@ -70,14 +82,20 @@ settingsRouter.get("/:key", async (c) =>
   })
 );
 
-settingsRouter.put("/:key", requireAdmin, async (c) =>
+settingsRouter.put("/:key", requireWorkspaceStaff, async (c) =>
   runRoute(c, async () => {
     const body = await parseJson(c, SettingUpsertSchema);
     if (body instanceof Response) return body;
     const key = c.req.param("key");
+    const workspaceId = c.get("workspaceId");
     const { data, error } = await serviceDb()
       .from("settings")
-      .upsert({ key, value: body.value, updated_at: new Date().toISOString() })
+      .upsert({
+        workspace_id: workspaceId,
+        key,
+        value: body.value,
+        updated_at: new Date().toISOString(),
+      })
       .select("*")
       .single();
     if (error) return dbError(c, error);

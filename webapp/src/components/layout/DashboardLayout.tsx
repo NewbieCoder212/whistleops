@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { useTranslation } from "@/i18n/I18nProvider";
 import { LanguageToggle } from "@/components/LanguageToggle";
+import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 import { Button } from "@/components/ui/button";
 
 const bottomNavKeys = [
@@ -54,7 +55,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       </header>
 
       <main className="flex-1 overflow-auto pb-24">
-        <div className="max-w-xl mx-auto px-4 py-6">{children}</div>
+        <div className="max-w-xl mx-auto px-4 py-6">
+          <div className="mb-4">
+            <WorkspaceSwitcher className="rounded-lg border border-border bg-card px-3 py-2" />
+          </div>
+          {children}
+        </div>
       </main>
 
       <nav className="fixed bottom-0 inset-x-0 z-20 flex border-t border-border bg-card/95 backdrop-blur">

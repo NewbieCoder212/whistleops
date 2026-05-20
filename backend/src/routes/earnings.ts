@@ -9,12 +9,14 @@ import {
   resolveSeasonBounds,
 } from "../lib/payCalculation";
 import { requireAuth } from "../middleware/auth";
+import { requireWorkspaceHeader } from "../middleware/workspaceScope";
 
 const earningsRouter = new Hono();
 
 // ── GET /api/earnings/mine ────────────────────────────────────────────────────
-earningsRouter.get("/mine", requireAuth, async (c) =>
+earningsRouter.get("/mine", requireAuth, requireWorkspaceHeader, async (c) =>
   runRoute(c, async () => {
+    const workspaceId = c.get("workspaceId");
     const season = resolveSeasonBounds({
       season_start: c.req.query("season_start"),
       season_end: c.req.query("season_end"),
@@ -34,6 +36,7 @@ earningsRouter.get("/mine", requireAuth, async (c) =>
     const { data: rateSetting } = await serviceDb()
       .from("settings")
       .select("value")
+      .eq("workspace_id", workspaceId)
       .eq("key", "pay_rates")
       .maybeSingle();
 
@@ -45,7 +48,8 @@ earningsRouter.get("/mine", requireAuth, async (c) =>
         "id, position, payout_approved, game:games(date_time, league_tier, league_type)"
       )
       .eq("official_id", profile.id)
-      .eq("status", "CONFIRMED");
+      .eq("status", "CONFIRMED")
+      .eq("game.workspace_id", workspaceId);
 
     if (error) return dbError(c, error);
 

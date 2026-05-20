@@ -5,7 +5,8 @@ import { sendBulkEmail } from "../lib/email";
 import { dbError, runRoute } from "../lib/handleDb";
 import { normalizeLeagueType } from "../lib/payCalculation";
 import { parseJson } from "../lib/validate";
-import { requireAdmin } from "../middleware/auth";
+import { requireWorkspaceStaff } from "../middleware/auth";
+import { requireWorkspaceHeader } from "../middleware/workspaceScope";
 import {
   GameCreateSchema,
   GameUpdateSchema,
@@ -15,9 +16,11 @@ import {
 } from "../types";
 
 const gamesRouter = new Hono();
+gamesRouter.use("*", requireWorkspaceHeader);
 
 gamesRouter.get("/", async (c) =>
   runRoute(c, async () => {
+    const workspaceId = c.get("workspaceId");
     const startDate = c.req.query("startDate");
     const endDate = c.req.query("endDate");
     const status = c.req.query("status");
@@ -25,6 +28,7 @@ gamesRouter.get("/", async (c) =>
     let q = serviceDb()
       .from("games")
       .select("*, venue:venues(*), assignments(*, official:profiles(id, full_name, official_type, email))")
+      .eq("workspace_id", workspaceId)
       .order("date_time", { ascending: true });
     if (startDate) q = q.gte("date_time", startDate);
     if (endDate) q = q.lte("date_time", endDate);
@@ -42,6 +46,7 @@ gamesRouter.get("/:id", async (c) =>
       .from("games")
       .select("*, venue:venues(*), assignments(*, official:profiles(id, full_name, official_type, email))")
       .eq("id", c.req.param("id"))
+      .eq("workspace_id", c.get("workspaceId"))
       .maybeSingle();
     if (error) return dbError(c, error);
     if (!data)
@@ -50,13 +55,13 @@ gamesRouter.get("/:id", async (c) =>
   })
 );
 
-gamesRouter.post("/", requireAdmin, async (c) =>
+gamesRouter.post("/", requireWorkspaceStaff, async (c) =>
   runRoute(c, async () => {
     const body = await parseJson(c, GameCreateSchema);
     if (body instanceof Response) return body;
     const { data, error } = await serviceDb()
       .from("games")
-      .insert(body)
+      .insert({ ...body, workspace_id: c.get("workspaceId") })
       .select("*")
       .single();
     if (error) return dbError(c, error);
@@ -68,16 +73,20 @@ gamesRouter.post("/", requireAdmin, async (c) =>
 // Accepts parsed game rows from the frontend CSV preview.
 // Resolves venue names → venue UUIDs (auto-creates unknown venues).
 // Bulk-inserts valid rows; collects per-row validation errors.
-gamesRouter.post("/bulk", requireAdmin, async (c) =>
+gamesRouter.post("/bulk", requireWorkspaceStaff, async (c) =>
   runRoute(c, async () => {
     const body = await parseJson(c, BulkImportPayloadSchema);
     if (body instanceof Response) return body;
 
+    const workspaceId = c.get("workspaceId");
     const db = serviceDb();
     const result: BulkImportResult = { inserted: 0, skipped: 0, errors: [] };
 
     // Pre-load existing venues to minimise round-trips
-    const { data: existingVenues } = await db.from("venues").select("id, name, assignable");
+    const { data: existingVenues } = await db
+      .from("venues")
+      .select("id, name, assignable")
+      .eq("workspace_id", workspaceId);
     const venueCache = new Map<string, { id: string; assignable: boolean }>(
       (existingVenues ?? []).map((v) => [
         v.name.toLowerCase().trim(),
@@ -102,6 +111,7 @@ gamesRouter.post("/bulk", requireAdmin, async (c) =>
         .insert({
           name: rawName.trim(),
           timezone: "America/Halifax", // default — admin can update later
+          workspace_id: workspaceId,
         })
         .select("id")
         .single();
@@ -138,6 +148,7 @@ gamesRouter.post("/bulk", requireAdmin, async (c) =>
       league_type?: string | null;
       game_number?: number | null;
       status: string;
+      workspace_id: string;
     }> = [];
 
     for (let i = 0; i < body.rows.length; i++) {
@@ -182,6 +193,7 @@ gamesRouter.post("/bulk", requireAdmin, async (c) =>
         ...(leagueType ? { league_type: leagueType } : {}),
         ...(row.game_number != null ? { game_number: row.game_number } : {}),
         status: "UNASSIGNED",
+        workspace_id: workspaceId,
       });
     }
 
@@ -208,7 +220,7 @@ gamesRouter.post("/bulk", requireAdmin, async (c) =>
 
 // ── POST /api/games/:id/message-assigned ──────────────────────────────────────
 // Emails all PENDING/CONFIRMED officials assigned to this game.
-gamesRouter.post("/:id/message-assigned", requireAdmin, async (c) =>
+gamesRouter.post("/:id/message-assigned", requireWorkspaceStaff, async (c) =>
   runRoute(c, async () => {
     if (!isResendConfigured()) {
       return c.json(
@@ -232,6 +244,7 @@ gamesRouter.post("/:id/message-assigned", requireAdmin, async (c) =>
       .from("games")
       .select("id, home_team, away_team, date_time")
       .eq("id", gameId)
+      .eq("workspace_id", c.get("workspaceId"))
       .maybeSingle();
     if (gameError) return dbError(c, gameError);
     if (!game) {
@@ -298,7 +311,7 @@ gamesRouter.post("/:id/message-assigned", requireAdmin, async (c) =>
   })
 );
 
-gamesRouter.put("/:id", requireAdmin, async (c) =>
+gamesRouter.put("/:id", requireWorkspaceStaff, async (c) =>
   runRoute(c, async () => {
     const body = await parseJson(c, GameUpdateSchema);
     if (body instanceof Response) return body;
@@ -306,6 +319,7 @@ gamesRouter.put("/:id", requireAdmin, async (c) =>
       .from("games")
       .update(body)
       .eq("id", c.req.param("id"))
+      .eq("workspace_id", c.get("workspaceId"))
       .select("*")
       .single();
     if (error) return dbError(c, error);
@@ -313,10 +327,14 @@ gamesRouter.put("/:id", requireAdmin, async (c) =>
   })
 );
 
-gamesRouter.delete("/:id", requireAdmin, async (c) =>
+gamesRouter.delete("/:id", requireWorkspaceStaff, async (c) =>
   runRoute(c, async () => {
     const id = c.req.param("id");
-    const { error } = await serviceDb().from("games").delete().eq("id", id);
+    const { error } = await serviceDb()
+      .from("games")
+      .delete()
+      .eq("id", id)
+      .eq("workspace_id", c.get("workspaceId"));
     if (error) return dbError(c, error);
     return { id, deleted: true };
   })

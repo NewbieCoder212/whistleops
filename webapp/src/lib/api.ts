@@ -7,6 +7,7 @@
  * - Unwraps the { data: T } envelope used by all app routes.
  */
 import { getAccessToken } from "./supabase";
+import { DEFAULT_WORKSPACE_ID, getActiveWorkspaceId } from "./workspace";
 
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || "";
 
@@ -34,6 +35,9 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     ...(options.headers as Record<string, string> | undefined),
   };
   if (token) headers.Authorization = `Bearer ${token}`;
+
+  const workspaceId = getActiveWorkspaceId() ?? DEFAULT_WORKSPACE_ID;
+  headers["X-Workspace-Id"] = workspaceId;
 
   const response = await fetch(url, {
     ...options,
@@ -67,6 +71,8 @@ async function rawRequest(endpoint: string, options: RequestInit = {}): Promise<
     ...(options.headers as Record<string, string> | undefined),
   };
   if (token) headers.Authorization = `Bearer ${token}`;
+  const workspaceId = getActiveWorkspaceId() ?? DEFAULT_WORKSPACE_ID;
+  headers["X-Workspace-Id"] = workspaceId;
   return fetch(url, { ...options, headers, credentials: "include" });
 }
 

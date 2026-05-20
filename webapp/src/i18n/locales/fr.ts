@@ -6,6 +6,10 @@ export const fr: Messages = {
     tagline: "Plateforme de gestion des arbitres du Nouveau-Brunswick",
     province: "Hockey Nouveau-Brunswick",
   },
+  workspace: {
+    label: "Organisation",
+    select: "Choisir une organisation",
+  },
   nav: {
     dashboard: "Tableau de bord",
     schedule: "Horaire",

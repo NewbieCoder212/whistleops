@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { useTranslation } from "@/i18n/I18nProvider";
 import { LanguageToggle } from "@/components/LanguageToggle";
+import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 
@@ -91,6 +92,10 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
 
         <NavList />
 
+        <div className="px-3 py-3 border-t border-sidebar-border">
+          <WorkspaceSwitcher />
+        </div>
+
         <div className="px-4 py-3 border-t border-sidebar-border space-y-2">
           {displayName ? (
             <p className="text-xs text-sidebar-foreground/70 truncate" title={displayName}>
@@ -155,6 +160,10 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           </div>
 
           <NavList onNav={() => setMobileOpen(false)} />
+
+          <div className="px-3 py-3 border-t border-sidebar-border">
+            <WorkspaceSwitcher />
+          </div>
 
           <div className="px-4 py-3 border-t border-sidebar-border space-y-2">
             {displayName ? (

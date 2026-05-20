@@ -11,6 +11,9 @@ import { z } from "zod";
 export const RoleEnum = z.enum(["ADMIN", "ASSIGNOR", "FINANCE", "OFFICIAL", "SUPERVISOR"]);
 export type Role = z.infer<typeof RoleEnum>;
 
+export const WorkspaceTypeEnum = z.enum(["province", "association", "league", "tournament"]);
+export type WorkspaceType = z.infer<typeof WorkspaceTypeEnum>;
+
 export const OfficialTypeEnum = z.enum(["REFEREE", "LINESMAN"]);
 export type OfficialType = z.infer<typeof OfficialTypeEnum>;
 
@@ -61,6 +64,7 @@ export const LeagueQualificationSchema = z.object({
   id: uuid,
   league_name: z.string(),
   minimum_level_id: uuid,
+  workspace_id: uuid.optional(),
   created_at: isoTs,
   updated_at: isoTs,
 });
@@ -80,6 +84,42 @@ export type LeagueQualificationCreate = z.infer<typeof LeagueQualificationCreate
 
 export const LeagueQualificationUpdateSchema = LeagueQualificationCreateSchema.partial();
 export type LeagueQualificationUpdate = z.infer<typeof LeagueQualificationUpdateSchema>;
+
+// ─── workspaces ───────────────────────────────────────────────────────────────
+
+export const WorkspaceSchema = z.object({
+  id: uuid,
+  name: z.string(),
+  slug: z.string(),
+  type: WorkspaceTypeEnum,
+  parent_workspace_id: uuid.nullable().optional(),
+  created_at: isoTs,
+  updated_at: isoTs,
+});
+export type Workspace = z.infer<typeof WorkspaceSchema>;
+
+export const WorkspaceMemberSchema = z.object({
+  id: uuid,
+  workspace_id: uuid,
+  profile_id: uuid,
+  role: RoleEnum,
+  created_at: isoTs,
+  updated_at: isoTs,
+});
+export type WorkspaceMember = z.infer<typeof WorkspaceMemberSchema>;
+
+export const WorkspaceWithRoleSchema = WorkspaceSchema.extend({
+  member_role: RoleEnum,
+});
+export type WorkspaceWithRole = z.infer<typeof WorkspaceWithRoleSchema>;
+
+export const WorkspaceCreateSchema = z.object({
+  name: z.string().min(1),
+  slug: z.string().min(1).regex(/^[a-z0-9-]+$/),
+  type: WorkspaceTypeEnum,
+  parent_workspace_id: uuid.optional(),
+});
+export type WorkspaceCreate = z.infer<typeof WorkspaceCreateSchema>;
 
 // ─── zones ────────────────────────────────────────────────────────────────────
 
@@ -111,6 +151,7 @@ export const VenueSchema = z.object({
   lng: nullableNumber,
   timezone: z.string(),
   zone_id: uuid.nullable().optional(),
+  workspace_id: uuid.optional(),
   assignable: z.boolean().default(true),
   created_at: isoTs,
   updated_at: isoTs,
@@ -213,6 +254,7 @@ export const GameSchema = z.object({
   id: uuid,
   date_time: isoTs,
   venue_id: uuid.nullable(),
+  workspace_id: uuid.optional(),
   status: GameStatusEnum,
   home_team: nullableText,
   away_team: nullableText,
@@ -332,6 +374,7 @@ export type AssignmentUpdate = z.infer<typeof AssignmentUpdateSchema>;
 
 export const SettingSchema = z.object({
   key: z.string(),
+  workspace_id: uuid.optional(),
   value: z.unknown(),
   updated_at: isoTs,
 });
@@ -472,6 +515,7 @@ export type PayApproveResult = z.infer<typeof PayApproveResultSchema>;
 export const AvailabilitySlotSchema = z.object({
   id: uuid,
   official_id: uuid,
+  workspace_id: uuid.optional(),
   date: z.string(), // YYYY-MM-DD
   morning: z.boolean(),
   afternoon: z.boolean(),

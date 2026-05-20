@@ -30,7 +30,15 @@ import type {
   Setting,
   BulkOfficialImportPayload,
   BulkOfficialImportResult,
+  WorkspaceWithRole,
+  WorkspaceCreate,
+  Workspace,
 } from "@shared/types";
+
+export const workspacesApi = {
+  list: () => api.get<WorkspaceWithRole[]>("/api/workspaces"),
+  create: (body: WorkspaceCreate) => api.post<Workspace>("/api/workspaces", body),
+};
 
 export const profilesApi = {
   list: () => api.get<Profile[]>("/api/profiles"),

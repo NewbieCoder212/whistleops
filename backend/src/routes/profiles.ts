@@ -3,7 +3,9 @@ import { serviceDb } from "../db";
 import { dbError, runRoute } from "../lib/handleDb";
 import { inviteOfficialByEmail } from "../lib/inviteOfficial";
 import { parseJson } from "../lib/validate";
-import { requireAuth, requireAdmin } from "../middleware/auth";
+import { DEFAULT_WORKSPACE_ID } from "../lib/workspace";
+import { requireAuth, requireWorkspaceStaff } from "../middleware/auth";
+import { requireWorkspaceHeader } from "../middleware/workspaceScope";
 import {
   BulkOfficialImportPayloadSchema,
   type BulkOfficialImportResult,
@@ -14,11 +16,21 @@ import {
 } from "../types";
 const profilesRouter = new Hono();
 
-profilesRouter.get("/", async (c) =>
+profilesRouter.get("/", requireWorkspaceHeader, async (c) =>
   runRoute(c, async () => {
+    const workspaceId = c.get("workspaceId");
+    const { data: members, error: memErr } = await serviceDb()
+      .from("workspace_members")
+      .select("profile_id")
+      .eq("workspace_id", workspaceId);
+    if (memErr) return dbError(c, memErr);
+    const ids = (members ?? []).map((m) => m.profile_id);
+    if (ids.length === 0) return [];
+
     const { data, error } = await serviceDb()
       .from("profiles")
       .select("*")
+      .in("id", ids)
       .order("full_name", { ascending: true });
     if (error) return dbError(c, error);
     return data ?? [];
@@ -40,11 +52,12 @@ profilesRouter.get("/me", requireAuth, async (c) =>
 );
 
 // ── POST /api/profiles/bulk ───────────────────────────────────────────────────
-profilesRouter.post("/bulk", requireAdmin, async (c) =>
+profilesRouter.post("/bulk", requireWorkspaceHeader, requireWorkspaceStaff, async (c) =>
   runRoute(c, async () => {
     const body = await parseJson(c, BulkOfficialImportPayloadSchema);
     if (body instanceof Response) return body;
 
+    const workspaceId = c.get("workspaceId");
     const db = serviceDb();
     const result: BulkOfficialImportResult = {
       inserted: 0,
@@ -128,20 +141,43 @@ profilesRouter.post("/bulk", requireAdmin, async (c) =>
         }
       }
 
-      const { error } = await db.from("profiles").insert({
-        email: row.email.trim().toLowerCase(),
-        full_name: row.full_name.trim(),
-        cell_phone: row.cell_phone?.trim() || null,
-        jersey_number: row.jersey_number?.trim() || null,
-        role: roleParsed.data,
-        official_type: typeParsed.data ?? null,
-        official_level_id: official_level_id ?? null,
-        zone_id: zone_id ?? null,
-        distance_km: row.distance_km ?? null,
-        user_id: user_id ?? null,
-      });
+      const { data: inserted, error } = await db
+        .from("profiles")
+        .insert({
+          email: row.email.trim().toLowerCase(),
+          full_name: row.full_name.trim(),
+          cell_phone: row.cell_phone?.trim() || null,
+          jersey_number: row.jersey_number?.trim() || null,
+          role: roleParsed.data,
+          official_type: typeParsed.data ?? null,
+          official_level_id: official_level_id ?? null,
+          zone_id: zone_id ?? null,
+          distance_km: row.distance_km ?? null,
+          user_id: user_id ?? null,
+        })
+        .select("id")
+        .single();
 
       if (error) {
+        if (error.message.includes("duplicate")) {
+          const { data: existing } = await db
+            .from("profiles")
+            .select("id")
+            .eq("email", row.email.trim().toLowerCase())
+            .maybeSingle();
+          if (existing) {
+            await db.from("workspace_members").upsert(
+              {
+                workspace_id: workspaceId,
+                profile_id: existing.id,
+                role: roleParsed.data,
+              },
+              { onConflict: "workspace_id,profile_id" }
+            );
+            result.inserted++;
+            continue;
+          }
+        }
         result.errors.push({
           row: rowNum,
           field: "—",
@@ -150,7 +186,12 @@ profilesRouter.post("/bulk", requireAdmin, async (c) =>
             : error.message,
         });
         result.skipped++;
-      } else {
+      } else if (inserted) {
+        await db.from("workspace_members").insert({
+          workspace_id: workspaceId,
+          profile_id: inserted.id,
+          role: roleParsed.data,
+        });
         result.inserted++;
       }
     }
@@ -172,11 +213,12 @@ profilesRouter.get("/:id", async (c) =>
   })
 );
 
-profilesRouter.post("/", requireAuth, async (c) =>
+profilesRouter.post("/", requireAuth, requireWorkspaceHeader, async (c) =>
   runRoute(c, async () => {
     const body = await parseJson(c, ProfileCreateSchema);
     if (body instanceof Response) return body;
 
+    const workspaceId = c.get("workspaceId") ?? DEFAULT_WORKSPACE_ID;
     let user_id = body.user_id ?? c.get("userId");
 
     if (
@@ -203,6 +245,14 @@ profilesRouter.post("/", requireAuth, async (c) =>
       .select("*")
       .single();
     if (error) return dbError(c, error);
+    await serviceDb().from("workspace_members").upsert(
+      {
+        workspace_id: workspaceId,
+        profile_id: data.id,
+        role: data.role,
+      },
+      { onConflict: "workspace_id,profile_id" }
+    );
     return data;
   })
 );
@@ -222,7 +272,7 @@ profilesRouter.put("/:id", requireAuth, async (c) =>
   })
 );
 
-profilesRouter.delete("/:id", requireAdmin, async (c) =>
+profilesRouter.delete("/:id", requireWorkspaceHeader, requireWorkspaceStaff, async (c) =>
   runRoute(c, async () => {
     const id = c.req.param("id");
     const { error } = await serviceDb().from("profiles").delete().eq("id", id);

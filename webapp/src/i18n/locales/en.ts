@@ -4,10 +4,13 @@ export const en = {
     tagline: "New Brunswick Officiating Management Platform",
     province: "New Brunswick Hockey",
   },
+  workspace: {
+    label: "Organization",
+    select: "Choose organization",
+  },
   nav: {
     dashboard: "Dashboard",
     schedule: "Schedule",
-    availability: "Availability",
     availability: "Availability",
     profile: "Profile",
     officials: "Officials",

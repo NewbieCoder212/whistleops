@@ -5,6 +5,7 @@ import { sendBulkEmail } from "../lib/email";
 import { dbError, runRoute } from "../lib/handleDb";
 import { parseJson } from "../lib/validate";
 import { requireAuth } from "../middleware/auth";
+import { requireWorkspaceHeader } from "../middleware/workspaceScope";
 import {
   IncidentNotifyEmailsSchema,
   IncidentReportCreateSchema,
@@ -29,17 +30,19 @@ function parseNotifyEmails(raw: unknown): IncidentNotifyEmails {
 }
 
 // ── POST /api/incidents ───────────────────────────────────────────────────────
-incidentsRouter.post("/", requireAuth, async (c) =>
+incidentsRouter.post("/", requireAuth, requireWorkspaceHeader, async (c) =>
   runRoute(c, async () => {
     const body = await parseJson(c, IncidentReportCreateSchema);
     if (body instanceof Response) return body;
 
     const profileId = await getProfileId(c.get("userId"));
 
+    const workspaceId = c.get("workspaceId");
     const { data: game, error: gameErr } = await serviceDb()
       .from("games")
-      .select("id, home_team, away_team, date_time, league_type, league_tier")
+      .select("id, home_team, away_team, date_time, league_type, league_tier, workspace_id")
       .eq("id", body.game_id)
+      .eq("workspace_id", workspaceId)
       .maybeSingle();
 
     if (gameErr) return dbError(c, gameErr);
@@ -66,6 +69,7 @@ incidentsRouter.post("/", requireAuth, async (c) =>
       const { data: setting } = await serviceDb()
         .from("settings")
         .select("value")
+        .eq("workspace_id", workspaceId)
         .eq("key", "incident_notify_emails")
         .maybeSingle();
 
@@ -90,12 +94,12 @@ incidentsRouter.post("/", requireAuth, async (c) =>
           <hr/>
           <pre style="white-space:pre-wrap;font-family:sans-serif">${body.body.trim()}</pre>
         `;
-        const result = await sendBulkEmail({
-          to: [...recipients],
-          subject,
-          html,
-        });
-        emails_sent = result.sent_count;
+        const recipientRows = [...recipients].map((email) => ({
+          email,
+          full_name: null as string | null,
+        }));
+        const { sent } = await sendBulkEmail(recipientRows, subject, html);
+        emails_sent = sent.length;
       }
     }
 

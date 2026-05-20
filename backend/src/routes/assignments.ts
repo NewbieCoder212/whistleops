@@ -3,7 +3,8 @@ import { Hono } from "hono";
 import { serviceDb } from "../db";
 import { dbError, runRoute } from "../lib/handleDb";
 import { parseJson } from "../lib/validate";
-import { requireAuth, requireAdmin } from "../middleware/auth";
+import { requireAuth, requireWorkspaceStaff } from "../middleware/auth";
+import { requireWorkspaceHeader } from "../middleware/workspaceScope";
 import { AssignmentCreateSchema, AssignmentUpdateSchema } from "../types";
 
 const assignmentsRouter = new Hono();
@@ -18,7 +19,7 @@ async function validateLeagueQualification(
 
   const { data: game, error: gameError } = await db
     .from("games")
-    .select("league_tier, league_type")
+    .select("league_tier, league_type, workspace_id")
     .eq("id", gameId)
     .maybeSingle();
   if (gameError) return dbError(c, gameError);
@@ -43,6 +44,7 @@ async function validateLeagueQualification(
     const { data, error: qualError } = await db
       .from("league_qualifications")
       .select("*, minimum_level:certification_levels(*)")
+      .eq("workspace_id", game.workspace_id)
       .ilike("league_name", key)
       .maybeSingle();
     if (qualError) return dbError(c, qualError);
@@ -110,7 +112,7 @@ async function validateLeagueQualification(
 
 // ── GET /api/assignments/mine ─────────────────────────────────────────────────
 // Returns the calling official's own assignments with embedded game data.
-assignmentsRouter.get("/mine", requireAuth, async (c) =>
+assignmentsRouter.get("/mine", requireAuth, requireWorkspaceHeader, async (c) =>
   runRoute(c, async () => {
     const { data: profile } = await serviceDb()
       .from("profiles")
@@ -127,6 +129,7 @@ assignmentsRouter.get("/mine", requireAuth, async (c) =>
       .from("assignments")
       .select("*, game:games(*, venue:venues(name))")
       .eq("official_id", profile.id)
+      .eq("game.workspace_id", c.get("workspaceId"))
       .order("created_at", { ascending: false });
 
     if (status) q = q.eq("status", status);
@@ -137,7 +140,7 @@ assignmentsRouter.get("/mine", requireAuth, async (c) =>
   })
 );
 
-assignmentsRouter.get("/", async (c) =>
+assignmentsRouter.get("/", requireWorkspaceHeader, async (c) =>
   runRoute(c, async () => {
     const gameId = c.req.query("gameId");
     const officialId = c.req.query("officialId");
@@ -146,6 +149,7 @@ assignmentsRouter.get("/", async (c) =>
     let q = serviceDb()
       .from("assignments")
       .select("*, game:games(*), official:profiles(*)")
+      .eq("game.workspace_id", c.get("workspaceId"))
       .order("created_at", { ascending: false });
     if (gameId) q = q.eq("game_id", gameId);
     if (officialId) q = q.eq("official_id", officialId);
@@ -170,7 +174,7 @@ assignmentsRouter.get("/:id", async (c) =>
   })
 );
 
-assignmentsRouter.post("/", requireAdmin, async (c) =>
+assignmentsRouter.post("/", requireWorkspaceHeader, requireWorkspaceStaff, async (c) =>
   runRoute(c, async () => {
     const body = await parseJson(c, AssignmentCreateSchema);
     if (body instanceof Response) return body;
@@ -226,7 +230,7 @@ assignmentsRouter.put("/:id", requireAuth, async (c) =>
   })
 );
 
-assignmentsRouter.delete("/:id", requireAdmin, async (c) =>
+assignmentsRouter.delete("/:id", requireWorkspaceHeader, requireWorkspaceStaff, async (c) =>
   runRoute(c, async () => {
     const id = c.req.param("id");
     const { error } = await serviceDb().from("assignments").delete().eq("id", id);

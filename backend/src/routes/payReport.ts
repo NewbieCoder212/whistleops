@@ -9,16 +9,19 @@ import {
   resolveSeasonBounds,
 } from "../lib/payCalculation";
 import { parseJson } from "../lib/validate";
-import { requireAdmin } from "../middleware/auth";
+import { requireWorkspaceStaff } from "../middleware/auth";
+import { requireWorkspaceHeader } from "../middleware/workspaceScope";
 import { PayApproveRequestSchema } from "../types";
 
 const payReportRouter = new Hono();
+payReportRouter.use("*", requireWorkspaceHeader);
 
 // ── GET /api/pay-report ───────────────────────────────────────────────────────
 // Aggregates CONFIRMED assignments per official. Optional ?year= or ?season_start/end.
-payReportRouter.get("/", requireAdmin, async (c) =>
+payReportRouter.get("/", requireWorkspaceStaff, async (c) =>
   runRoute(c, async () => {
     const db = serviceDb();
+    const workspaceId = c.get("workspaceId");
     const season = resolveSeasonBounds({
       season_start: c.req.query("season_start"),
       season_end: c.req.query("season_end"),
@@ -28,6 +31,7 @@ payReportRouter.get("/", requireAdmin, async (c) =>
     const { data: rateSetting } = await db
       .from("settings")
       .select("value")
+      .eq("workspace_id", workspaceId)
       .eq("key", "pay_rates")
       .maybeSingle();
 
@@ -41,6 +45,7 @@ payReportRouter.get("/", requireAdmin, async (c) =>
         "official:profiles(id, full_name, email, official_type, distance_km)"
       )
       .eq("status", "CONFIRMED")
+      .eq("game.workspace_id", workspaceId)
       .order("created_at", { ascending: true });
 
     if (error) return dbError(c, error);
@@ -169,10 +174,18 @@ payReportRouter.get("/", requireAdmin, async (c) =>
 );
 
 // ── POST /api/pay-report/approve ──────────────────────────────────────────────
-payReportRouter.post("/approve", requireAdmin, async (c) =>
+payReportRouter.post("/approve", requireWorkspaceStaff, async (c) =>
   runRoute(c, async () => {
     const body = await parseJson(c, PayApproveRequestSchema);
     if (body instanceof Response) return body;
+    const workspaceId = c.get("workspaceId");
+
+    const { data: gameIds } = await serviceDb()
+      .from("games")
+      .select("id")
+      .eq("workspace_id", workspaceId);
+    const ids = (gameIds ?? []).map((g) => g.id);
+    if (ids.length === 0) return { approved_count: 0 };
 
     const { data, error } = await serviceDb()
       .from("assignments")
@@ -180,6 +193,7 @@ payReportRouter.post("/approve", requireAdmin, async (c) =>
       .eq("official_id", body.official_id)
       .eq("status", "CONFIRMED")
       .eq("payout_approved", false)
+      .in("game_id", ids)
       .select("id");
 
     if (error) return dbError(c, error);

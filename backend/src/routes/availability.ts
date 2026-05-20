@@ -6,7 +6,8 @@ import {
   parseAvailabilityWindow,
 } from "../lib/availabilityWindow";
 import { parseJson } from "../lib/validate";
-import { requireAdmin, requireAuth } from "../middleware/auth";
+import { requireAuth, requireWorkspaceStaff } from "../middleware/auth";
+import { requireWorkspaceHeader } from "../middleware/workspaceScope";
 import { AvailabilityUpsertSchema } from "../types";
 
 const availabilityRouter = new Hono();
@@ -20,10 +21,11 @@ async function getProfileId(userId: string): Promise<string | null> {
   return data?.id ?? null;
 }
 
-async function loadAvailabilityWindow() {
+async function loadAvailabilityWindow(workspaceId: string) {
   const { data } = await serviceDb()
     .from("settings")
     .select("value")
+    .eq("workspace_id", workspaceId)
     .eq("key", "availability_window")
     .maybeSingle();
   return parseAvailabilityWindow(data?.value);
@@ -39,16 +41,17 @@ function derivePeriods(hours: number[]) {
 }
 
 // ── GET /api/availability/window ──────────────────────────────────────────────
-availabilityRouter.get("/window", async (c) =>
+availabilityRouter.get("/window", requireWorkspaceHeader, async (c) =>
   runRoute(c, async () => {
-    const window = await loadAvailabilityWindow();
+    const window = await loadAvailabilityWindow(c.get("workspaceId"));
     return { window };
   })
 );
 
 // ── GET /api/availability/overview ────────────────────────────────────────────
-availabilityRouter.get("/overview", requireAdmin, async (c) =>
+availabilityRouter.get("/overview", requireWorkspaceHeader, requireWorkspaceStaff, async (c) =>
   runRoute(c, async () => {
+    const workspaceId = c.get("workspaceId");
     const startQ = c.req.query("start");
     const endQ = c.req.query("end");
     const officialId = c.req.query("officialId");
@@ -60,9 +63,20 @@ availabilityRouter.get("/overview", requireAdmin, async (c) =>
       );
     }
 
+    const { data: members, error: memErr } = await serviceDb()
+      .from("workspace_members")
+      .select("profile_id")
+      .eq("workspace_id", workspaceId);
+    if (memErr) return dbError(c, memErr);
+    const memberIds = (members ?? []).map((m) => m.profile_id);
+    if (memberIds.length === 0) {
+      return { start: startQ, end: endQ, officials: [] };
+    }
+
     let profilesQ = serviceDb()
       .from("profiles")
       .select("id, full_name, email, zone_id")
+      .in("id", memberIds)
       .in("role", ["OFFICIAL", "SUPERVISOR"])
       .order("full_name", { ascending: true });
 
@@ -74,6 +88,7 @@ availabilityRouter.get("/overview", requireAdmin, async (c) =>
     const { data: slots, error: slotErr } = await serviceDb()
       .from("availability")
       .select("*")
+      .eq("workspace_id", workspaceId)
       .gte("date", startQ)
       .lte("date", endQ)
       .order("date", { ascending: true });
@@ -100,11 +115,12 @@ availabilityRouter.get("/overview", requireAdmin, async (c) =>
 );
 
 // ── GET /api/availability ─────────────────────────────────────────────────────
-availabilityRouter.get("/", requireAuth, async (c) =>
+availabilityRouter.get("/", requireAuth, requireWorkspaceHeader, async (c) =>
   runRoute(c, async () => {
     const month = c.req.query("month");
     const startQ = c.req.query("start");
     const endQ = c.req.query("end");
+    const workspaceId = c.get("workspaceId");
 
     const profileId = await getProfileId(c.get("userId"));
     if (!profileId) {
@@ -114,6 +130,7 @@ availabilityRouter.get("/", requireAuth, async (c) =>
     let q = serviceDb()
       .from("availability")
       .select("*")
+      .eq("workspace_id", workspaceId)
       .eq("official_id", profileId)
       .order("date", { ascending: true });
 
@@ -144,9 +161,10 @@ availabilityRouter.get("/", requireAuth, async (c) =>
 );
 
 // ── PUT /api/availability/:date ───────────────────────────────────────────────
-availabilityRouter.put("/:date", requireAuth, async (c) =>
+availabilityRouter.put("/:date", requireAuth, requireWorkspaceHeader, async (c) =>
   runRoute(c, async () => {
     const date = c.req.param("date");
+    const workspaceId = c.get("workspaceId");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return c.json(
         { error: { message: "date param must be YYYY-MM-DD", code: "VALIDATION_ERROR" } },
@@ -154,7 +172,7 @@ availabilityRouter.put("/:date", requireAuth, async (c) =>
       );
     }
 
-    const window = await loadAvailabilityWindow();
+    const window = await loadAvailabilityWindow(workspaceId);
     const check = isDateInAvailabilityWindow(date, window);
     if (!check.allowed) {
       return c.json(
@@ -178,11 +196,12 @@ availabilityRouter.put("/:date", requireAuth, async (c) =>
       .upsert(
         {
           official_id: profileId,
+          workspace_id: workspaceId,
           date,
           time_slots: body.time_slots,
           ...periods,
         },
-        { onConflict: "official_id,date" }
+        { onConflict: "workspace_id,official_id,date" }
       )
       .select("*")
       .single();
