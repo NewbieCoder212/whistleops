@@ -28,7 +28,7 @@ This workspace contains a React webapp and Hono backend server.
 <deploy>
   vercel.json at the workspace root configures a Vercel monorepo:
   - Vite build from webapp/, output to webapp/dist
-  - /api/* and /health rewritten to backend/src/index.ts (Vercel Node serverless)
+  - /api/* and /health rewritten to api/index.ts (Hono via hono/vercel; imports backend app)
   - Everything else falls through to the SPA's index.html
 </deploy>
 

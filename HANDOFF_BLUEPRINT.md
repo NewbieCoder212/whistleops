@@ -12,6 +12,8 @@
 ```
 workspace/
 ├── vercel.json                        # Monorepo deploy config (see §3)
+├── api/
+│   └── index.ts                       # Vercel serverless entry (hono/vercel → backend app)
 ├── CLAUDE.md                          # AI agent workspace instructions
 ├── HANDOFF_BLUEPRINT.md               # ← this file
 │
@@ -207,15 +209,14 @@ All routes are prefixed `/api/` and mounted in `backend/src/index.ts`.
   "outputDirectory": "webapp/dist",
   "installCommand": "bun install --cwd webapp && bun install --cwd backend",
   "functions": {
-    "backend/src/index.ts": {
-      "runtime": "@vercel/node@3.2.0",
+    "api/index.ts": {
       "memory": 1024,
       "maxDuration": 30
     }
   },
   "rewrites": [
-    { "source": "/api/(.*)",   "destination": "/backend/src/index.ts" },
-    { "source": "/health",     "destination": "/backend/src/index.ts" },
+    { "source": "/api/(.*)",   "destination": "/api" },
+    { "source": "/health",     "destination": "/api" },
     { "source": "/((?!api|health|assets|favicon\\.ico|robots\\.txt|.*\\..*).*)",
       "destination": "/index.html" }
   ]
@@ -225,7 +226,7 @@ All routes are prefixed `/api/` and mounted in `backend/src/index.ts`.
 **How it works:**
 
 1. **Build** — Vite compiles `webapp/` into `webapp/dist/`. Vercel serves static assets from there.
-2. **API traffic** — Any request to `/api/*` or `/health` is rewritten to `backend/src/index.ts`, which Vercel runs as a Node.js serverless function via `@vercel/node`. The Hono app exports both `default { fetch }` (Bun dev) and a named `app` export (Vercel adapter).
+2. **API traffic** — Any request to `/api/*` or `/health` is rewritten to `api/index.ts`, which uses `hono/vercel`’s `handle(app)` and imports the Hono `app` from `backend/src/index.ts`. Local dev still runs `backend/src/index.ts` directly with Bun.
 3. **SPA fallback** — All other non-file paths fall through to `index.html`, enabling React Router v6 client-side navigation.
 4. **No `VITE_BACKEND_URL` in production** — The webapp calls `/api/...` with relative URLs, so there is no cross-origin request in production. `VITE_BACKEND_URL` is only needed locally when the backend runs on a different port (3000 vs 8000).
 
