@@ -1,15 +1,14 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
-  "buildCommand": "cd webapp && bun install && bun run build",
+  "buildCommand": "bun install --cwd backend && bun run --cwd backend build:vercel && cd webapp && bun install && bun run build",
   "outputDirectory": "webapp/dist",
   "installCommand": "bun install --cwd webapp && bun install --cwd backend",
   "framework": null,
   "functions": {
     "api/index.ts": {
       "memory": 1024,
-      "maxDuration": 30,
-      "includeFiles": "backend/**"
+      "maxDuration": 30
     }
   },
   "rewrites": [
