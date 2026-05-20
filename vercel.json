@@ -5,13 +5,6 @@
   "outputDirectory": "webapp/dist",
   "installCommand": "bun install && bun install --cwd webapp && bun install --cwd backend",
   "framework": null,
-  "functions": {
-    "api/**/*.js": {
-      "runtime": "nodejs20.x",
-      "memory": 1024,
-      "maxDuration": 30
-    }
-  },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/health", "destination": "/api/health" },
