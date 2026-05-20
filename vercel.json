@@ -6,7 +6,7 @@
   "installCommand": "bun install && bun install --cwd webapp && bun install --cwd backend",
   "framework": null,
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/api/(.*)", "destination": "/api?path=$1" },
     { "source": "/health", "destination": "/api/health" },
     { "source": "/((?!api|health|assets|favicon\\.ico|robots\\.txt|.*\\..*).*)", "destination": "/index.html" }
   ]
