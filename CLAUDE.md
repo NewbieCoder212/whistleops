@@ -1,6 +1,8 @@
-# Vibecode Workspace
+# WhistleOps Workspace
 
-This workspace contains a mobile app and backend server.
+Developed in **Cursor** with local testing on **localhost**. (Not Vibecode.)
+
+This workspace contains a React webapp and Hono backend server.
 
 <projects>
   WhistleOps — officials scheduling app (React + Hono + Supabase).
@@ -15,9 +17,9 @@ This workspace contains a mobile app and backend server.
   auto-attaches the access token as a Bearer header on every request. The
   backend validates it via supabase.auth.getUser(token).
 
-  Required env vars (set via Vibecode ENV tab):
+  Required env vars (webapp/.env and backend/.env — do not commit):
     Backend:  SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
-    Frontend: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, (VITE_BACKEND_URL in dev)
+    Frontend: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_BACKEND_URL=http://localhost:3000 (local dev)
 
   SQL migrations live in backend/src/migrations/ and must be run manually
   in the Supabase SQL editor (0001 → 0002 → 0003).
@@ -42,7 +44,7 @@ This workspace contains a mobile app and backend server.
   When a feature needs both frontend and backend:
   1. Define Zod schemas for request/response in backend/src/types.ts (shared contracts)
   2. Implement backend route using the schemas
-  3. Test backend with cURL (use $BACKEND_URL, never localhost)
+  3. Test backend with cURL (local: http://localhost:3000; deployed: use deployment URL)
   4. Implement frontend, importing schemas from backend/src/types.ts to parse responses
   5. Test the integration
 
@@ -62,10 +64,7 @@ This workspace contains a mobile app and backend server.
 </skills>
 
 <environment>
-  System manages git and dev servers. DO NOT manage these.
-  The user views the app through Vibecode Mobile App with a webview preview or Vibecode Web App with an iframe preview.
-  The user cannot see code or terminal. Do everything for them.
-  Write one-off scripts to achieve tasks the user asks for.
-  Communicate in an easy to understand manner for non-technical users.
-  Be concise and don't talk too much.
+  Local testing: webapp on localhost:8000, backend on localhost:3000 (see .cursor/rules/local-dev-cursor.mdc).
+  User develops in Cursor; may run terminals, git, and browsers directly.
+  Communicate clearly; prefer concrete localhost URLs and file paths when guiding setup.
 </environment>

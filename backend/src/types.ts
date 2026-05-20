@@ -126,6 +126,7 @@ export type WorkspaceCreate = z.infer<typeof WorkspaceCreateSchema>;
 export const ZoneSchema = z.object({
   id: uuid,
   name: z.string(),
+  slug: z.string().nullable().optional(),
   sort_order: z.number().int(),
   created_at: isoTs,
   updated_at: isoTs,
@@ -134,6 +135,7 @@ export type Zone = z.infer<typeof ZoneSchema>;
 
 export const ZoneCreateSchema = z.object({
   name: z.string().min(1),
+  slug: z.string().min(1).regex(/^[a-z0-9-]+$/).optional(),
   sort_order: z.number().int().default(0),
 });
 export type ZoneCreate = z.infer<typeof ZoneCreateSchema>;

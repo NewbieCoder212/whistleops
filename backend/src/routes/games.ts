@@ -24,8 +24,37 @@ gamesRouter.get("/", async (c) =>
     const startDate = c.req.query("startDate");
     const endDate = c.req.query("endDate");
     const status = c.req.query("status");
+    const zoneId = c.req.query("zoneId");
+    const unassignedOnly = c.req.query("unassignedOnly") === "true";
 
-    let q = serviceDb()
+    const db = serviceDb();
+
+    if (zoneId) {
+      const { data: zoneVenues, error: venueErr } = await db
+        .from("venues")
+        .select("id")
+        .eq("workspace_id", workspaceId)
+        .eq("zone_id", zoneId);
+      if (venueErr) return dbError(c, venueErr);
+      const venueIds = (zoneVenues ?? []).map((v) => v.id);
+      if (venueIds.length === 0) return [];
+
+      let q = db
+        .from("games")
+        .select("*, venue:venues(*), assignments(*, official:profiles(id, full_name, official_type, email))")
+        .eq("workspace_id", workspaceId)
+        .in("venue_id", venueIds)
+        .order("date_time", { ascending: true });
+      if (startDate) q = q.gte("date_time", startDate);
+      if (endDate) q = q.lte("date_time", endDate);
+      if (status) q = q.eq("status", status);
+
+      const { data, error } = await q;
+      if (error) return dbError(c, error);
+      return filterUnassignedOnly(data ?? [], unassignedOnly);
+    }
+
+    let q = db
       .from("games")
       .select("*, venue:venues(*), assignments(*, official:profiles(id, full_name, official_type, email))")
       .eq("workspace_id", workspaceId)
@@ -36,9 +65,23 @@ gamesRouter.get("/", async (c) =>
 
     const { data, error } = await q;
     if (error) return dbError(c, error);
-    return data ?? [];
+    return filterUnassignedOnly(data ?? [], unassignedOnly);
   })
 );
+
+const ASSIGNMENT_SLOTS = ["REF1", "REF2", "LINE1", "LINE2"] as const;
+
+function filterUnassignedOnly<T extends { status: string; assignments?: Array<{ position: string }> }>(
+  games: T[],
+  unassignedOnly: boolean
+): T[] {
+  if (!unassignedOnly) return games;
+  return games.filter((g) => {
+    if (g.status === "UNASSIGNED") return true;
+    const filled = new Set((g.assignments ?? []).map((a) => a.position));
+    return ASSIGNMENT_SLOTS.some((pos) => !filled.has(pos));
+  });
+}
 
 gamesRouter.get("/:id", async (c) =>
   runRoute(c, async () => {

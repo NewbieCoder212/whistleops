@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Calendar, AlertCircle, CalendarDays, Plus } from "lucide-react";
+import { CalendarDays, AlertCircle, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AddGameModal } from "@/features/games/AddGameModal";
 import { AdminLayout } from "@/components/layout/AdminLayout";
@@ -8,44 +8,72 @@ import { ScheduleGameCard } from "@/features/schedule/ScheduleGameCard";
 import { AssignPanel } from "@/features/schedule/AssignPanel";
 import { MessageAssignedModal } from "@/features/messaging/MessageAssignedModal";
 import { IncidentReportModal } from "@/features/incidents/IncidentReportModal";
-import { ZoneLeagueFilter, type FilterState } from "@/features/filters/ZoneLeagueFilter";
+import {
+  ScheduleFilterBar,
+  defaultScheduleFilters,
+  buildGamesQueryParams,
+  type ScheduleFilterState,
+} from "@/features/filters/ScheduleFilterBar";
+import {
+  loadSavedZoneId,
+  saveZonePreference,
+} from "@/features/filters/scheduleFilterUtils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
+import { useAuth } from "@/hooks/useAuth";
+import { useProfile } from "@/hooks/useProfile";
 import type { Position } from "@shared/types";
 import type { ScheduleGame, ScheduleAssignment, AssignTarget } from "@/features/schedule/scheduleTypes";
 import { toDateKey, formatDateHeader } from "@/features/schedule/scheduleTypes";
 
-function todayIso(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 export default function Schedule() {
+  const { user } = useAuth();
+  const { data: profile } = useProfile();
+  const zoneInitialized = useRef(false);
+
   const [target, setTarget] = useState<AssignTarget | null>(null);
   const [messageGame, setMessageGame] = useState<ScheduleGame | null>(null);
   const [incidentGame, setIncidentGame] = useState<ScheduleGame | null>(null);
-  const [showPast, setShowPast] = useState(false);
-  const [filters, setFilters] = useState<FilterState>({ zoneId: null, leagueType: null });
+  const [filters, setFilters] = useState<ScheduleFilterState>(defaultScheduleFilters);
   const [addGameOpen, setAddGameOpen] = useState(false);
 
-  const startDate = showPast ? undefined : todayIso();
+  useEffect(() => {
+    if (!profile || zoneInitialized.current) return;
+    zoneInitialized.current = true;
+
+    const saved = loadSavedZoneId(user?.id);
+    let defaultZone: string | null = null;
+
+    if (saved) {
+      defaultZone = saved;
+    } else if (profile.role === "ASSIGNOR" && profile.zone_id) {
+      defaultZone = profile.zone_id;
+    }
+
+    if (defaultZone) {
+      setFilters((f) => ({ ...f, zoneId: defaultZone }));
+    }
+  }, [profile, user?.id]);
+
+  const handleFiltersChange = (next: ScheduleFilterState) => {
+    setFilters(next);
+    saveZonePreference(user?.id, next.zoneId);
+  };
+
+  const queryString = buildGamesQueryParams(filters);
 
   const { data: games, isLoading, isError } = useQuery<ScheduleGame[]>({
-    queryKey: ["schedule-games", startDate],
-    queryFn: () =>
-      api.get<ScheduleGame[]>(
-        `/api/games${startDate ? `?startDate=${startDate}T00:00:00Z` : ""}`
-      ),
+    queryKey: ["schedule-games", queryString],
+    queryFn: () => api.get<ScheduleGame[]>(`/api/games?${queryString}`),
   });
 
   const filtered = useMemo(() => {
     if (!games) return [];
     return games.filter((g) => {
-      if (filters.zoneId && (g as ScheduleGame & { venue?: { zone_id?: string | null } }).venue?.zone_id !== filters.zoneId) return false;
-      if (filters.leagueType && (g as ScheduleGame & { league_type?: string | null }).league_type !== filters.leagueType) return false;
+      if (filters.leagueType && g.league_type !== filters.leagueType) return false;
       return true;
     });
-  }, [games, filters]);
+  }, [games, filters.leagueType]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, ScheduleGame[]>();
@@ -71,49 +99,30 @@ export default function Schedule() {
     setTarget({ game, position, assignment });
   };
 
-  const hiddenCount = (games?.length ?? 0) - filtered.length;
-
   return (
     <AdminLayout>
       <div className="space-y-5 max-w-5xl">
-        {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Schedule</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Click any assignment slot to assign or reassign an official.
+              Filter by zone and date, then click any slot to assign an official.
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button
-              size="sm"
-              className="h-8 gap-1.5"
-              onClick={() => setAddGameOpen(true)}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Add game
-            </Button>
-            <button
-              onClick={() => setShowPast((v) => !v)}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors border border-border rounded-md px-2.5 py-1.5"
-            >
-              <Calendar className="h-3.5 w-3.5" />
-              {showPast ? "Showing all games" : "Upcoming only"}
-            </button>
-          </div>
+          <Button
+            size="sm"
+            className="h-8 gap-1.5"
+            onClick={() => setAddGameOpen(true)}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add game
+          </Button>
         </div>
 
-        {/* Filter bar */}
         <div className="rounded-lg border border-border bg-muted/30 px-4 py-3">
-          <ZoneLeagueFilter value={filters} onChange={setFilters} />
-          {hiddenCount > 0 ? (
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              {hiddenCount} game{hiddenCount !== 1 ? "s" : ""} hidden by filter
-            </p>
-          ) : null}
+          <ScheduleFilterBar value={filters} onChange={handleFiltersChange} />
         </div>
 
-        {/* Content */}
         {isLoading ? (
           <div className="space-y-3">
             {Array.from({ length: 4 }).map((_, i) => (
@@ -133,9 +142,7 @@ export default function Schedule() {
             <div className="text-center">
               <p className="text-sm font-medium">No games match filters</p>
               <p className="text-xs mt-0.5">
-                {showPast
-                  ? "Try adjusting the filters above, or add a game."
-                  : "Add a game or import a CSV schedule."}
+                Try a wider date range, another zone, or add a game.
               </p>
               <Button
                 size="sm"

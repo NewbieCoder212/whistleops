@@ -35,7 +35,13 @@ export type ScheduleGame = {
   gamesheet_external_id?: string | null;
   created_at: string;
   updated_at: string;
-  venue: { id: string; name: string; timezone: string; address?: string | null } | null;
+  venue: {
+    id: string;
+    name: string;
+    timezone: string;
+    address?: string | null;
+    zone_id?: string | null;
+  } | null;
   assignments: ScheduleAssignment[];
 };
 

@@ -4,7 +4,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { profilesApi, certificationLevelsApi } from "@/lib/resources";
-import type { Profile, CertificationLevel } from "@shared/types";
+import type { Profile, CertificationLevel, Zone } from "@shared/types";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,6 +37,7 @@ type FormValues = {
   role: "ADMIN" | "ASSIGNOR" | "FINANCE" | "OFFICIAL" | "SUPERVISOR";
   official_type: "REFEREE" | "LINESMAN" | "";
   official_level_id: string;
+  zone_id: string;
 };
 
 const ROLES = [
@@ -83,7 +85,14 @@ export function OfficialDrawer({ open, onClose, profile }: Props) {
       role: "OFFICIAL",
       official_type: "",
       official_level_id: "",
+      zone_id: "",
     },
+  });
+
+  const { data: zones = [] } = useQuery<Zone[]>({
+    queryKey: ["zones"],
+    queryFn: () => api.get<Zone[]>("/api/zones"),
+    staleTime: 10 * 60 * 1000,
   });
 
   // Populate form when editing
@@ -98,6 +107,7 @@ export function OfficialDrawer({ open, onClose, profile }: Props) {
         role: profile?.role ?? "OFFICIAL",
         official_type: (profile?.official_type as "REFEREE" | "LINESMAN" | "") ?? "",
         official_level_id: profile?.official_level_id ?? "",
+        zone_id: profile?.zone_id ?? "",
       });
     }
   }, [open, profile, reset]);
@@ -123,6 +133,7 @@ export function OfficialDrawer({ open, onClose, profile }: Props) {
         ...data,
         official_type: data.official_type || undefined,
         official_level_id: data.official_level_id || undefined,
+        zone_id: data.zone_id || undefined,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["profiles"] });
@@ -142,6 +153,11 @@ export function OfficialDrawer({ open, onClose, profile }: Props) {
   const isPending = createMutation.isPending || updateMutation.isPending;
   const role = watch("role");
   const showOfficialFields = role === "OFFICIAL" || role === "SUPERVISOR";
+  const showZoneField =
+    role === "OFFICIAL" ||
+    role === "SUPERVISOR" ||
+    role === "ASSIGNOR" ||
+    role === "ADMIN";
 
   const onSubmit = (data: FormValues) => {
     if (isEdit) {
@@ -156,6 +172,7 @@ export function OfficialDrawer({ open, onClose, profile }: Props) {
         role: data.role,
         official_type: data.official_type || undefined,
         official_level_id: data.official_level_id || undefined,
+        zone_id: data.zone_id || undefined,
         send_invite:
           sendInvite && (data.role === "OFFICIAL" || data.role === "SUPERVISOR"),
       });
@@ -333,6 +350,37 @@ export function OfficialDrawer({ open, onClose, profile }: Props) {
                 </div>
               </>
             )}
+
+            {showZoneField ? (
+              <div className="space-y-1.5">
+                <Label>Home zone</Label>
+                <p className="text-[11px] text-muted-foreground">
+                  Assignors default to this zone on the schedule. Officials use it for roster grouping.
+                </p>
+                <Controller
+                  name="zone_id"
+                  control={control}
+                  render={({ field }) => (
+                    <Select
+                      value={field.value || "__none__"}
+                      onValueChange={(v) => field.onChange(v === "__none__" ? "" : v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="No zone" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">No zone</SelectItem>
+                        {zones.map((z) => (
+                          <SelectItem key={z.id} value={z.id}>
+                            {z.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+            ) : null}
           </div>
 
           <SheetFooter className="pt-4 gap-2">
