@@ -42,7 +42,16 @@ export const requireAuth: MiddlewareHandler = async (c, next) => {
   try {
     const { data, error } = await getUserFromAccessToken(token);
     if (error || !data.user) {
-      return c.json({ error: { message: "Invalid token", code: "UNAUTHENTICATED" } }, 401);
+      const detail = error?.message?.trim();
+      return c.json(
+        {
+          error: {
+            message: detail || "Invalid token",
+            code: "UNAUTHENTICATED",
+          },
+        },
+        401
+      );
     }
     c.set("userId", data.user.id);
     c.set("userEmail", data.user.email ?? "");
