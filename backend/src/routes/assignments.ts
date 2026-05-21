@@ -5,6 +5,10 @@ import { dbError, runRoute } from "../lib/handleDb";
 import { parseJson } from "../lib/validate";
 import { requireAuth, requireWorkspaceStaff } from "../middleware/auth";
 import { requireWorkspaceHeader } from "../middleware/workspaceScope";
+import {
+  notifyAssignorsOfAssignmentResponse,
+  shouldNotifyAssignors,
+} from "../lib/assignmentResponseNotify";
 import { AssignmentCreateSchema, AssignmentUpdateSchema } from "../types";
 
 const assignmentsRouter = new Hono();
@@ -205,27 +209,37 @@ assignmentsRouter.put("/:id", requireAuth, async (c) =>
     const body = await parseJson(c, AssignmentUpdateSchema);
     if (body instanceof Response) return body;
 
+    const assignmentId = c.req.param("id");
+
+    const { data: before, error: beforeErr } = await serviceDb()
+      .from("assignments")
+      .select("id, game_id, status")
+      .eq("id", assignmentId)
+      .maybeSingle();
+    if (beforeErr) return dbError(c, beforeErr);
+    if (!before) {
+      return c.json({ error: { message: "Assignment not found", code: "NOT_FOUND" } }, 404);
+    }
+
     if (body.official_id) {
-      const { data: existing, error: fetchError } = await serviceDb()
-        .from("assignments")
-        .select("game_id")
-        .eq("id", c.req.param("id"))
-        .maybeSingle();
-      if (fetchError) return dbError(c, fetchError);
-      if (!existing) {
-        return c.json({ error: { message: "Assignment not found", code: "NOT_FOUND" } }, 404);
-      }
-      const qualBlock = await validateLeagueQualification(c, existing.game_id, body.official_id);
+      const qualBlock = await validateLeagueQualification(c, before.game_id, body.official_id);
       if (qualBlock) return qualBlock;
     }
 
     const { data, error } = await serviceDb()
       .from("assignments")
       .update(body)
-      .eq("id", c.req.param("id"))
+      .eq("id", assignmentId)
       .select("*")
       .single();
     if (error) return dbError(c, error);
+
+    if (shouldNotifyAssignors(before.status, body.status)) {
+      notifyAssignorsOfAssignmentResponse(assignmentId, body.status).catch((err) => {
+        console.error("[assignmentResponseNotify]", err);
+      });
+    }
+
     return data;
   })
 );

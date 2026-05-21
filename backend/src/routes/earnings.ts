@@ -4,8 +4,7 @@ import { dbError, runRoute } from "../lib/handleDb";
 import {
   isGameInSeason,
   parsePayRates,
-  resolveGameFee,
-  resolveMileage,
+  resolveAssignmentPay,
   resolveSeasonBounds,
 } from "../lib/payCalculation";
 import { requireAuth } from "../middleware/auth";
@@ -45,7 +44,7 @@ earningsRouter.get("/mine", requireAuth, requireWorkspaceHeader, async (c) =>
     const { data: assignments, error } = await serviceDb()
       .from("assignments")
       .select(
-        "id, position, payout_approved, game:games(date_time, league_tier, league_type)"
+        "id, position, payout_approved, game:games(date_time, league_tier, league_type, is_cash_game)"
       )
       .eq("official_id", profile.id)
       .eq("status", "CONFIRMED")
@@ -53,12 +52,12 @@ earningsRouter.get("/mine", requireAuth, requireWorkspaceHeader, async (c) =>
 
     if (error) return dbError(c, error);
 
-    const mileageBase = resolveMileage(payRates, profile.distance_km);
     let game_fees = 0;
     let mileage_payout = 0;
     let mileage_km = 0;
     let approved_count = 0;
     let assignment_count = 0;
+    let cost_per_km = payRates.default.cost_per_km;
 
     for (const a of assignments ?? []) {
       const rawGame = a.game;
@@ -66,19 +65,26 @@ earningsRouter.get("/mine", requireAuth, requireWorkspaceHeader, async (c) =>
         date_time: string;
         league_tier: string | null;
         league_type: string | null;
+        is_cash_game: boolean | null;
       } | null;
       if (!game || !isGameInSeason(game.date_time, season)) continue;
 
       assignment_count++;
       const position = a.position as "REF1" | "REF2" | "LINE1" | "LINE2" | "SUPERVISOR";
-      const { fee } = resolveGameFee(
+      const pay = resolveAssignmentPay(
         payRates,
-        { league_tier: game.league_tier, league_type: game.league_type },
-        position
+        {
+          league_tier: game.league_tier,
+          league_type: game.league_type,
+          is_cash_game: game.is_cash_game,
+        },
+        position,
+        profile.distance_km
       );
-      game_fees += fee;
-      mileage_payout += mileageBase.mileage_payout;
-      mileage_km += mileageBase.mileage_km;
+      game_fees += pay.game_fee;
+      mileage_payout += pay.mileage_payout;
+      mileage_km += pay.mileage_km;
+      cost_per_km = pay.cost_per_km;
       if (a.payout_approved) approved_count++;
     }
 
@@ -90,7 +96,7 @@ earningsRouter.get("/mine", requireAuth, requireWorkspaceHeader, async (c) =>
       mileage_payout,
       total_due: game_fees + mileage_payout,
       distance_km: profile.distance_km ?? 0,
-      cost_per_km: mileageBase.cost_per_km,
+      cost_per_km,
       season,
     };
   })

@@ -3,6 +3,7 @@ import { serviceDb } from "../db";
 import { dbError, runRoute } from "../lib/handleDb";
 import { inviteOfficialByEmail } from "../lib/inviteOfficial";
 import { parseJson } from "../lib/validate";
+import { isGameInSeason, resolveStatsDateBounds } from "../lib/payCalculation";
 import { DEFAULT_WORKSPACE_ID } from "../lib/workspace";
 import { requireAuth, requireWorkspaceStaff } from "../middleware/auth";
 import { requireWorkspaceHeader } from "../middleware/workspaceScope";
@@ -200,6 +201,94 @@ profilesRouter.post("/bulk", requireWorkspaceHeader, requireWorkspaceStaff, asyn
   })
 );
 
+// ── GET /api/profiles/decline-stats ───────────────────────────────────────────
+// REJECTED assignment counts per official for a season or custom date range.
+profilesRouter.get("/decline-stats", requireWorkspaceHeader, requireWorkspaceStaff, async (c) =>
+  runRoute(c, async () => {
+    const workspaceId = c.get("workspaceId");
+    const period = resolveStatsDateBounds({
+      date_from: c.req.query("date_from"),
+      date_to: c.req.query("date_to"),
+      season_start: c.req.query("season_start"),
+      season_end: c.req.query("season_end"),
+      year: c.req.query("year"),
+    });
+
+    const { data: rows, error } = await serviceDb()
+      .from("assignments")
+      .select(
+        "id, position, official_id, " +
+          "game:games(id, date_time, home_team, away_team, league_tier, workspace_id, venue:venues(name))"
+      )
+      .eq("status", "REJECTED")
+      .eq("game.workspace_id", workspaceId);
+
+    if (error) return dbError(c, error);
+
+    type GameSnap = {
+      id: string;
+      date_time: string;
+      home_team: string | null;
+      away_team: string | null;
+      league_tier: string | null;
+      workspace_id: string;
+      venue: { name: string } | { name: string }[] | null;
+    };
+
+    const gamesByOfficial = new Map<
+      string,
+      Array<{
+        assignment_id: string;
+        game_id: string;
+        position: string;
+        date_time: string;
+        home_team: string | null;
+        away_team: string | null;
+        venue_name: string | null;
+        league_tier: string | null;
+      }>
+    >();
+
+    for (const row of rows ?? []) {
+      const rawGame = row.game as GameSnap | GameSnap[] | null;
+      const game = Array.isArray(rawGame) ? rawGame[0] : rawGame;
+      if (!game?.date_time || !isGameInSeason(game.date_time, period)) continue;
+
+      const rawVenue = game.venue;
+      const venue = Array.isArray(rawVenue) ? rawVenue[0] : rawVenue;
+      const oid = row.official_id as string;
+      const list = gamesByOfficial.get(oid) ?? [];
+      list.push({
+        assignment_id: row.id as string,
+        game_id: game.id,
+        position: row.position as string,
+        date_time: game.date_time,
+        home_team: game.home_team,
+        away_team: game.away_team,
+        venue_name: venue?.name ?? null,
+        league_tier: game.league_tier,
+      });
+      gamesByOfficial.set(oid, list);
+    }
+
+    const by_official = Array.from(gamesByOfficial.entries())
+      .map(([official_id, games]) => ({
+        official_id,
+        declined_count: games.length,
+        games: games.sort((a, b) => a.date_time.localeCompare(b.date_time)),
+      }))
+      .sort((a, b) => b.declined_count - a.declined_count);
+
+    const total_declined = by_official.reduce((n, r) => n + r.declined_count, 0);
+
+    return {
+      period,
+      by_official,
+      total_declined,
+    };
+  })
+);
+
 profilesRouter.get("/:id", async (c) =>
   runRoute(c, async () => {
     const { data, error } = await serviceDb()
@@ -212,6 +301,30 @@ profilesRouter.get("/:id", async (c) =>
     return data;
   })
 );
+
+/** Postgres `date` columns reject ""; coerce blanks to null. */
+function sanitizeProfileRow<T extends Record<string, unknown>>(body: T): T {
+  const row = { ...body };
+  const dateKeys = ["date_of_birth"] as const;
+  for (const key of dateKeys) {
+    if (key in row && row[key] === "") {
+      (row as Record<string, unknown>)[key] = null;
+    }
+  }
+  const optionalText = [
+    "full_name",
+    "jersey_number",
+    "cell_phone",
+    "home_address",
+    "avatar_url",
+  ] as const;
+  for (const key of optionalText) {
+    if (key in row && row[key] === "") {
+      (row as Record<string, unknown>)[key] = null;
+    }
+  }
+  return row;
+}
 
 profilesRouter.post("/", requireAuth, requireWorkspaceHeader, async (c) =>
   runRoute(c, async () => {
@@ -241,7 +354,7 @@ profilesRouter.post("/", requireAuth, requireWorkspaceHeader, async (c) =>
     const { send_invite: _, ...row } = body;
     const { data, error } = await serviceDb()
       .from("profiles")
-      .insert({ ...row, user_id })
+      .insert(sanitizeProfileRow({ ...row, user_id }))
       .select("*")
       .single();
     if (error) return dbError(c, error);
@@ -263,7 +376,7 @@ profilesRouter.put("/:id", requireAuth, async (c) =>
     if (body instanceof Response) return body;
     const { data, error } = await serviceDb()
       .from("profiles")
-      .update(body)
+      .update(sanitizeProfileRow(body))
       .eq("id", c.req.param("id"))
       .select("*")
       .single();

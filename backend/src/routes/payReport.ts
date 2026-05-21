@@ -4,8 +4,7 @@ import { dbError, runRoute } from "../lib/handleDb";
 import {
   isGameInSeason,
   parsePayRates,
-  resolveGameFee,
-  resolveMileage,
+  resolveAssignmentPay,
   resolveSeasonBounds,
 } from "../lib/payCalculation";
 import { parseJson } from "../lib/validate";
@@ -41,7 +40,7 @@ payReportRouter.get("/", requireWorkspaceStaff, async (c) =>
       .from("assignments")
       .select(
         "id, game_id, official_id, position, status, payout_approved, " +
-        "game:games(id, date_time, home_team, away_team, league_tier, league_type, venue:venues(name)), " +
+        "game:games(id, date_time, home_team, away_team, league_tier, league_type, is_cash_game, venue:venues(name)), " +
         "official:profiles(id, full_name, email, official_type, distance_km)"
       )
       .eq("status", "CONFIRMED")
@@ -57,6 +56,7 @@ payReportRouter.get("/", requireWorkspaceStaff, async (c) =>
       away_team: string | null;
       league_tier: string | null;
       league_type: string | null;
+      is_cash_game: boolean | null;
       venue: { name: string } | null;
     };
     type OfficialSnap = {
@@ -96,12 +96,16 @@ payReportRouter.get("/", requireWorkspaceStaff, async (c) =>
           away_team: string | null;
           venue_name: string | null;
           position: string;
+          gross_game_fee: number;
+          assigning_fee_deduction: number;
           game_fee: number;
           mileage_km: number;
           mileage_payout: number;
           payout_approved: boolean;
           rate_source: "tier" | "type" | "default";
           rate_label: string | null;
+          cash_game: boolean;
+          travel_pay_enabled: boolean;
         }>;
       }
     >();
@@ -113,12 +117,12 @@ payReportRouter.get("/", requireWorkspaceStaff, async (c) =>
       if (!isGameInSeason(game.date_time, season)) continue;
 
       const position = raw.position as "REF1" | "REF2" | "LINE1" | "LINE2" | "SUPERVISOR";
-      const { fee: gameFee, rate_source, rate_label } = resolveGameFee(
-        payRates,
-        { league_tier: game.league_tier, league_type: game.league_type },
-        position
-      );
-      const mileage = resolveMileage(payRates, official.distance_km);
+      const gameCtx = {
+        league_tier: game.league_tier,
+        league_type: game.league_type,
+        is_cash_game: game.is_cash_game,
+      };
+      const pay = resolveAssignmentPay(payRates, gameCtx, position, official.distance_km);
       const approved = raw.payout_approved ?? false;
 
       if (!summaryMap.has(official.id)) {
@@ -137,10 +141,10 @@ payReportRouter.get("/", requireWorkspaceStaff, async (c) =>
       }
 
       const summary = summaryMap.get(official.id)!;
-      summary.game_fees += gameFee;
-      summary.mileage_km += mileage.mileage_km;
-      summary.mileage_payout += mileage.mileage_payout;
-      summary.total_due += gameFee + mileage.mileage_payout;
+      summary.game_fees += pay.game_fee;
+      summary.mileage_km += pay.mileage_km;
+      summary.mileage_payout += pay.mileage_payout;
+      summary.total_due += pay.game_fee + pay.mileage_payout;
       if (!approved) summary.all_approved = false;
 
       summary.assignments.push({
@@ -151,12 +155,16 @@ payReportRouter.get("/", requireWorkspaceStaff, async (c) =>
         away_team: game.away_team,
         venue_name: game.venue?.name ?? null,
         position: raw.position,
-        game_fee: gameFee,
-        mileage_km: mileage.mileage_km,
-        mileage_payout: mileage.mileage_payout,
+        gross_game_fee: pay.gross_game_fee,
+        assigning_fee_deduction: pay.assigning_fee_deduction,
+        game_fee: pay.game_fee,
+        mileage_km: pay.mileage_km,
+        mileage_payout: pay.mileage_payout,
         payout_approved: approved,
-        rate_source,
-        rate_label,
+        rate_source: pay.rate_source,
+        rate_label: pay.rate_label,
+        cash_game: pay.cash_game,
+        travel_pay_enabled: pay.travel_pay_enabled,
       });
     }
 

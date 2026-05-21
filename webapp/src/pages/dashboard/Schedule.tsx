@@ -123,7 +123,11 @@ export default function OfficialSchedule() {
   const mutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       api.put<Assignment>(`/api/assignments/${id}`, { status }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["assignments", "mine"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["assignments", "mine"] });
+      qc.invalidateQueries({ queryKey: ["games"] });
+      qc.invalidateQueries({ queryKey: ["assign-board"] });
+    },
   });
 
   const pending = assignments.filter(

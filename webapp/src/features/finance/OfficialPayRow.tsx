@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronRight, CheckCircle2, Loader2 } from "lucide-react";
+import { ChevronRight, CheckCircle2, Loader2, Banknote } from "lucide-react";
 import { TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -151,7 +151,7 @@ export function OfficialPayRow({ summary, onApprove, isPending }: OfficialPayRow
       {/* Expanded assignment lines */}
       {expanded && (
         <TableRow className="hover:bg-transparent border-border">
-          <TableCell colSpan={7} className="p-0">
+          <TableCell colSpan={9} className="p-0">
             <div className="border-b border-border bg-secondary/10 px-8 pb-3 pt-2">
               <table className="w-full text-xs">
                 <thead>
@@ -161,7 +161,9 @@ export function OfficialPayRow({ summary, onApprove, isPending }: OfficialPayRow
                     <th className="text-left py-1.5 font-medium pr-4">Venue</th>
                     <th className="text-left py-1.5 font-medium pr-4">Position</th>
                     <th className="text-left py-1.5 font-medium pr-4">Rate</th>
-                    <th className="text-right py-1.5 font-medium pr-4">Game Fee</th>
+                    <th className="text-right py-1.5 font-medium pr-4">Gross</th>
+                    <th className="text-right py-1.5 font-medium pr-4">Assigning</th>
+                    <th className="text-right py-1.5 font-medium pr-4">Net Fee</th>
                     <th className="text-right py-1.5 font-medium pr-4">Mileage</th>
                     <th className="text-center py-1.5 font-medium">Status</th>
                   </tr>
@@ -176,7 +178,15 @@ export function OfficialPayRow({ summary, onApprove, isPending }: OfficialPayRow
                         {fmtDate(line.game_date)}
                       </td>
                       <td className="py-1.5 pr-4 font-medium">
-                        {line.home_team ?? "TBD"} vs {line.away_team ?? "TBD"}
+                        <span className="inline-flex items-center gap-1.5 flex-wrap">
+                          {line.home_team ?? "TBD"} vs {line.away_team ?? "TBD"}
+                          {line.cash_game ? (
+                            <span className="inline-flex items-center gap-0.5 rounded border border-amber-500/30 bg-amber-500/10 px-1 py-0 text-[9px] font-medium text-amber-700 dark:text-amber-400">
+                              <Banknote className="h-2.5 w-2.5" />
+                              Cash
+                            </span>
+                          ) : null}
+                        </span>
                       </td>
                       <td className="py-1.5 pr-4 text-muted-foreground">
                         {line.venue_name ?? "—"}
@@ -201,7 +211,15 @@ export function OfficialPayRow({ summary, onApprove, isPending }: OfficialPayRow
                           "—"
                         )}
                       </td>
-                      <td className="py-1.5 pr-4 text-right tabular-nums">
+                      <td className="py-1.5 pr-4 text-right tabular-nums text-muted-foreground">
+                        {fmt(line.gross_game_fee)}
+                      </td>
+                      <td className="py-1.5 pr-4 text-right tabular-nums text-muted-foreground">
+                        {line.assigning_fee_deduction > 0
+                          ? `−${fmt(line.assigning_fee_deduction)}`
+                          : "—"}
+                      </td>
+                      <td className="py-1.5 pr-4 text-right tabular-nums font-medium">
                         {fmt(line.game_fee)}
                       </td>
                       <td className="py-1.5 pr-4 text-right tabular-nums text-muted-foreground">

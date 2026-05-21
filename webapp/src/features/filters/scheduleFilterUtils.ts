@@ -29,6 +29,7 @@ export type ScheduleFilterState = {
   dateFrom: string;
   dateTo: string;
   unassignedOnly: boolean;
+  declinedOnly: boolean;
 };
 
 export function defaultScheduleFilters(): ScheduleFilterState {
@@ -39,6 +40,7 @@ export function defaultScheduleFilters(): ScheduleFilterState {
     dateFrom: from,
     dateTo: addDaysIso(from, 7),
     unassignedOnly: false,
+    declinedOnly: false,
   };
 }
 

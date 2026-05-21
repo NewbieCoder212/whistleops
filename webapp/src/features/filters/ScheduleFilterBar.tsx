@@ -41,7 +41,8 @@ export function ScheduleFilterBar({ value, onChange, className }: ScheduleFilter
   const hasFilter =
     value.zoneId !== null ||
     value.leagueType !== null ||
-    value.unassignedOnly;
+    value.unassignedOnly ||
+    value.declinedOnly;
 
   function patch(partial: Partial<ScheduleFilterState>) {
     onChange({ ...value, ...partial });
@@ -55,6 +56,7 @@ export function ScheduleFilterBar({ value, onChange, className }: ScheduleFilter
       dateFrom: from,
       dateTo: addDaysIso(from, 7),
       unassignedOnly: false,
+      declinedOnly: false,
     });
   }
 
@@ -170,6 +172,15 @@ export function ScheduleFilterBar({ value, onChange, className }: ScheduleFilter
           onClick={() => patch({ unassignedOnly: !value.unassignedOnly })}
         >
           Unassigned only
+        </Button>
+        <Button
+          type="button"
+          variant={value.declinedOnly ? "default" : "outline"}
+          size="sm"
+          className="h-7 text-xs"
+          onClick={() => patch({ declinedOnly: !value.declinedOnly })}
+        >
+          Declined only
         </Button>
         {hasFilter ? (
           <Button

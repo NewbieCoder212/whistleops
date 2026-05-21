@@ -23,27 +23,46 @@ interface ZoneLeagueFilterProps {
   value: FilterState;
   onChange: (f: FilterState) => void;
   className?: string;
+  /** Official's home zone — hides zone picker and keeps filter fixed. */
+  lockedZoneId?: string | null;
 }
 
-export function ZoneLeagueFilter({ value, onChange, className }: ZoneLeagueFilterProps) {
+export function ZoneLeagueFilter({
+  value,
+  onChange,
+  className,
+  lockedZoneId,
+}: ZoneLeagueFilterProps) {
   const { data: zones = [] } = useQuery<Zone[]>({
     queryKey: ["zones"],
     queryFn: () => api.get<Zone[]>("/api/zones"),
     staleTime: 10 * 60 * 1000,
   });
 
-  const hasFilter = value.zoneId !== null || value.leagueType !== null;
+  const lockedZoneName =
+    lockedZoneId != null
+      ? zones.find((z) => z.id === lockedZoneId)?.name ?? "Your zone"
+      : null;
+
+  const effectiveZoneId = lockedZoneId ?? value.zoneId;
+  const hasFilter =
+    (lockedZoneId == null && value.zoneId !== null) || value.leagueType !== null;
 
   function setZone(zoneId: string | null) {
+    if (lockedZoneId) return;
     onChange({ ...value, zoneId });
   }
 
   function setLeague(leagueType: string | null) {
-    onChange({ ...value, leagueType: value.leagueType === leagueType ? null : leagueType });
+    onChange({
+      ...value,
+      zoneId: lockedZoneId ?? value.zoneId,
+      leagueType: value.leagueType === leagueType ? null : leagueType,
+    });
   }
 
   function clearAll() {
-    onChange({ zoneId: null, leagueType: null });
+    onChange({ zoneId: lockedZoneId ?? null, leagueType: null });
   }
 
   return (
@@ -53,23 +72,29 @@ export function ZoneLeagueFilter({ value, onChange, className }: ZoneLeagueFilte
         <span className="font-medium">Filter</span>
       </div>
 
-      {/* Zone selector */}
-      <Select
-        value={value.zoneId ?? "all"}
-        onValueChange={(v) => setZone(v === "all" ? null : v)}
-      >
-        <SelectTrigger className="h-8 w-auto min-w-[140px] max-w-[220px] text-xs border-border">
-          <SelectValue placeholder="All Zones" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Zones</SelectItem>
-          {zones.map((z) => (
-            <SelectItem key={z.id} value={z.id}>
-              {z.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {/* Zone: locked for officials with a home zone, otherwise selectable */}
+      {lockedZoneId ? (
+        <span className="h-8 inline-flex items-center rounded-md border border-border bg-background px-3 text-xs font-medium text-foreground">
+          {lockedZoneName}
+        </span>
+      ) : (
+        <Select
+          value={effectiveZoneId ?? "all"}
+          onValueChange={(v) => setZone(v === "all" ? null : v)}
+        >
+          <SelectTrigger className="h-8 w-auto min-w-[140px] max-w-[220px] text-xs border-border">
+            <SelectValue placeholder="All Zones" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Zones</SelectItem>
+            {zones.map((z) => (
+              <SelectItem key={z.id} value={z.id}>
+                {z.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
 
       {/* League type pills */}
       <div className="flex items-center gap-1.5">

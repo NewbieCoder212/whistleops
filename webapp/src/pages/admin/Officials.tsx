@@ -8,7 +8,7 @@ const Officials = () => (
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Officials</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Manage your roster, roles, certification levels, and bulk import from CSV.
+          Manage your roster, roles, certification levels, decline history by season or date range, and bulk import from CSV.
         </p>
       </div>
       <ImportOfficialsSection />

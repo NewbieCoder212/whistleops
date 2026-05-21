@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
@@ -127,14 +127,24 @@ export function OfficialDrawer({ open, onClose, profile }: Props) {
       ),
   });
 
+  const toProfilePayload = (data: FormValues, opts?: { forUpdate?: boolean }) => {
+    const dob = data.date_of_birth.trim();
+    return {
+      full_name: data.full_name.trim() || undefined,
+      email: data.email.trim(),
+      cell_phone: data.cell_phone.trim() || undefined,
+      jersey_number: data.jersey_number.trim() || undefined,
+      date_of_birth: dob || (opts?.forUpdate ? null : undefined),
+      role: data.role,
+      official_type: data.official_type || undefined,
+      official_level_id: data.official_level_id || undefined,
+      zone_id: data.zone_id || undefined,
+    };
+  };
+
   const updateMutation = useMutation({
     mutationFn: (data: FormValues) =>
-      profilesApi.update(profile!.id, {
-        ...data,
-        official_type: data.official_type || undefined,
-        official_level_id: data.official_level_id || undefined,
-        zone_id: data.zone_id || undefined,
-      }),
+      profilesApi.update(profile!.id, toProfilePayload(data, { forUpdate: true })),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["profiles"] });
       toast.success("Profile updated");
@@ -164,20 +174,14 @@ export function OfficialDrawer({ open, onClose, profile }: Props) {
       updateMutation.mutate(data);
     } else {
       createMutation.mutate({
-        full_name: data.full_name,
-        email: data.email,
-        cell_phone: data.cell_phone || undefined,
-        jersey_number: data.jersey_number || undefined,
-        date_of_birth: data.date_of_birth || undefined,
-        role: data.role,
-        official_type: data.official_type || undefined,
-        official_level_id: data.official_level_id || undefined,
-        zone_id: data.zone_id || undefined,
+        ...toProfilePayload(data),
         send_invite:
           sendInvite && (data.role === "OFFICIAL" || data.role === "SUPERVISOR"),
       });
     }
   };
+
+  if (!open) return null;
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
@@ -307,11 +311,17 @@ export function OfficialDrawer({ open, onClose, profile }: Props) {
                     name="official_type"
                     control={control}
                     render={({ field }) => (
-                      <Select value={field.value} onValueChange={field.onChange}>
+                      <Select
+                        value={field.value || "__none__"}
+                        onValueChange={(v) => field.onChange(v === "__none__" ? "" : v)}
+                      >
                         <SelectTrigger>
                           <SelectValue placeholder="Select type…" />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="__none__" className="text-muted-foreground">
+                            — not set —
+                          </SelectItem>
                           {OFFICIAL_TYPES.map((t) => (
                             <SelectItem key={t.value} value={t.value}>
                               {t.label}
@@ -329,7 +339,10 @@ export function OfficialDrawer({ open, onClose, profile }: Props) {
                     name="official_level_id"
                     control={control}
                     render={({ field }) => (
-                      <Select value={field.value} onValueChange={field.onChange}>
+                      <Select
+                        value={field.value || "__none__"}
+                        onValueChange={(v) => field.onChange(v === "__none__" ? "" : v)}
+                      >
                         <SelectTrigger>
                           <SelectValue
                             placeholder={
@@ -338,6 +351,9 @@ export function OfficialDrawer({ open, onClose, profile }: Props) {
                           />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="__none__" className="text-muted-foreground">
+                            — not set —
+                          </SelectItem>
                           {levels.map((lv) => (
                             <SelectItem key={lv.id} value={lv.id}>
                               {lv.name}
@@ -355,7 +371,8 @@ export function OfficialDrawer({ open, onClose, profile }: Props) {
               <div className="space-y-1.5">
                 <Label>Home zone</Label>
                 <p className="text-[11px] text-muted-foreground">
-                  Assignors default to this zone on the schedule. Officials use it for roster grouping.
+                  Schedule, Assignment Board, and the add-game rink list default to this zone.
+                  Officials use it for roster grouping. Games get their zone from the rink.
                 </p>
                 <Controller
                   name="zone_id"

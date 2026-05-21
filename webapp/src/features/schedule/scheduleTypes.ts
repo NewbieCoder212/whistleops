@@ -28,6 +28,7 @@ export type ScheduleGame = {
   away_team: string | null;
   league_tier: string | null;
   league_type?: string | null;
+  is_cash_game?: boolean;
   notes: string | null;
   game_number: number | null;
   home_score?: number | null;

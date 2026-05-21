@@ -11,6 +11,7 @@ export const en = {
   nav: {
     dashboard: "Dashboard",
     schedule: "Schedule",
+    assignmentBoard: "Assignment Board",
     availability: "Availability",
     profile: "Profile",
     officials: "Officials",
@@ -23,6 +24,7 @@ export const en = {
   navDesc: {
     dashboard: "Overview & stats",
     schedule: "Games & assignments",
+    assignmentBoard: "Day view: games + availability",
     availability: "Official availability overview",
     officials: "Profiles & roster",
     finance: "Payroll & approvals",

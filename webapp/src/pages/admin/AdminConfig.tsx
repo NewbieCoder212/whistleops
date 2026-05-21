@@ -10,7 +10,7 @@ import { VenuesPanel } from "@/features/venues/VenuesPanel";
 
 const AdminConfig = () => (
   <AdminLayout>
-    <div className="max-w-3xl mx-auto space-y-8">
+    <div className="max-w-6xl mx-auto space-y-8">
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Configuration</h1>
         <p className="mt-1 text-sm text-muted-foreground">

@@ -20,6 +20,7 @@ import type {
   Assignment,
   AssignmentCreate,
   AssignmentUpdate,
+  AssignBoard,
   CertificationLevel,
   CertificationLevelCreate,
   CertificationLevelUpdate,
@@ -30,6 +31,7 @@ import type {
   Setting,
   BulkOfficialImportPayload,
   BulkOfficialImportResult,
+  OfficialDeclineStats,
   WorkspaceWithRole,
   WorkspaceCreate,
   Workspace,
@@ -40,8 +42,26 @@ export const workspacesApi = {
   create: (body: WorkspaceCreate) => api.post<Workspace>("/api/workspaces", body),
 };
 
+export type DeclineStatsParams = {
+  year?: string;
+  date_from?: string;
+  date_to?: string;
+  season_start?: string;
+  season_end?: string;
+};
+
 export const profilesApi = {
   list: () => api.get<Profile[]>("/api/profiles"),
+  declineStats: (params?: DeclineStatsParams) => {
+    const qs = params
+      ? "?" + new URLSearchParams(
+          Object.fromEntries(
+            Object.entries(params).filter(([, v]) => v != null && v !== "") as [string, string][]
+          )
+        ).toString()
+      : "";
+    return api.get<OfficialDeclineStats>(`/api/profiles/decline-stats${qs}`);
+  },
   me: () => api.get<Profile>("/api/profiles/me"),
   get: (id: string) => api.get<Profile>(`/api/profiles/${id}`),
   create: (body: ProfileCreate) => api.post<Profile>("/api/profiles", body),
@@ -53,6 +73,7 @@ export const profilesApi = {
 };
 
 export const gamesApi = {
+  distinctLeagueTiers: () => api.get<string[]>("/api/games/distinct-league-tiers"),
   list: (params?: { startDate?: string; endDate?: string; status?: string }) => {
     const qs = params
       ? "?" + new URLSearchParams(params as Record<string, string>).toString()
@@ -114,6 +135,14 @@ export const leagueQualificationsApi = {
     api.put<LeagueQualification>(`/api/league-qualifications/${id}`, body),
   delete: (id: string) =>
     api.delete<{ id: string }>(`/api/league-qualifications/${id}`),
+};
+
+export const assignBoardApi = {
+  get: (params: { date: string; zoneId: string; leagueType?: string }) => {
+    const qs = new URLSearchParams({ date: params.date, zoneId: params.zoneId });
+    if (params.leagueType) qs.set("leagueType", params.leagueType);
+    return api.get<AssignBoard>(`/api/assign-board?${qs.toString()}`);
+  },
 };
 
 export const settingsApi = {

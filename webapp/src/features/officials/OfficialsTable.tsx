@@ -2,6 +2,14 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Search, Plus, Pencil, Loader2, AlertCircle, Users } from "lucide-react";
 import { profilesApi, certificationLevelsApi } from "@/lib/resources";
+import { OfficialsDeclinePeriodBar } from "./OfficialsDeclinePeriodBar";
+import { OfficialsDeclineCountCell } from "./OfficialsDeclineCountCell";
+import {
+  declineStatsQueryParams,
+  defaultDeclinePeriod,
+  type DeclinePeriodState,
+} from "./officialsDeclineStats";
+import type { DeclinedAssignmentGame, OfficialDeclineStats } from "@shared/types";
 import { api } from "@/lib/api";
 import { useRosterDisplayFields } from "@/hooks/useRosterDisplayFields";
 import type { Zone } from "@shared/types";
@@ -217,13 +225,33 @@ export function OfficialsTable() {
     role: "__all__",
     levelId: "__all__",
   });
+  const [declinePeriod, setDeclinePeriod] = useState<DeclinePeriodState>(defaultDeclinePeriod);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Profile | null>(null);
+
+  const declineParams = declineStatsQueryParams(declinePeriod);
 
   const { data: profiles = [], isLoading, isError } = useQuery<Profile[]>({
     queryKey: ["profiles"],
     queryFn: profilesApi.list,
   });
+
+  const {
+    data: declineStats,
+    isLoading: declineStatsLoading,
+    isError: declineStatsError,
+  } = useQuery<OfficialDeclineStats>({
+    queryKey: ["profiles-decline-stats", declineParams],
+    queryFn: () => profilesApi.declineStats(declineParams),
+  });
+
+  const declineByOfficial = useMemo(() => {
+    const map = new Map<string, { count: number; games: DeclinedAssignmentGame[] }>();
+    for (const row of declineStats?.by_official ?? []) {
+      map.set(row.official_id, { count: row.declined_count, games: row.games ?? [] });
+    }
+    return map;
+  }, [declineStats]);
 
   const { data: levels = [] } = useQuery<CertificationLevel[]>({
     queryKey: ["certification-levels"],
@@ -278,6 +306,17 @@ export function OfficialsTable() {
         onAdd={openAdd}
       />
 
+      <OfficialsDeclinePeriodBar
+        value={declinePeriod}
+        onChange={setDeclinePeriod}
+        periodLabel={declineStats?.period.label}
+        totalDeclined={declineStats?.total_declined}
+      />
+
+      {declineStatsError ? (
+        <p className="text-xs text-destructive">Could not load decline counts for this period.</p>
+      ) : null}
+
       <div className="rounded-lg border border-border overflow-hidden">
         <Table>
           <TableHeader>
@@ -298,6 +337,9 @@ export function OfficialsTable() {
               {show("distance_km") ? (
                 <TableHead className="hidden lg:table-cell w-[80px]">km</TableHead>
               ) : null}
+              <TableHead className="w-[72px] text-right" title="Assignments declined in selected period">
+                Declines
+              </TableHead>
               <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
@@ -323,12 +365,13 @@ export function OfficialsTable() {
                     <Skeleton className="h-4 w-16" />
                   </TableCell>
                   <TableCell><Skeleton className="h-7 w-36" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-6 ml-auto" /></TableCell>
                   <TableCell />
                 </TableRow>
               ))
             ) : isError ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-12 text-center">
+                <TableCell colSpan={8} className="py-12 text-center">
                   <div className="flex flex-col items-center gap-2 text-muted-foreground">
                     <AlertCircle className="h-6 w-6 text-destructive" />
                     <p className="text-sm">Failed to load profiles.</p>
@@ -337,7 +380,7 @@ export function OfficialsTable() {
               </TableRow>
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-16 text-center">
+                <TableCell colSpan={8} className="py-16 text-center">
                   <div className="flex flex-col items-center gap-3 text-muted-foreground">
                     <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
                       <Users className="h-5 w-5" />
@@ -440,6 +483,17 @@ export function OfficialsTable() {
                       {profile.distance_km != null ? profile.distance_km : "—"}
                     </TableCell>
                   ) : null}
+
+                  <TableCell className="text-right">
+                    <div className="flex justify-end">
+                      <OfficialsDeclineCountCell
+                        count={declineByOfficial.get(profile.id)?.count ?? 0}
+                        games={declineByOfficial.get(profile.id)?.games ?? []}
+                        loading={declineStatsLoading}
+                        officialName={profile.full_name}
+                      />
+                    </div>
+                  </TableCell>
 
                   {/* Edit */}
                   <TableCell>

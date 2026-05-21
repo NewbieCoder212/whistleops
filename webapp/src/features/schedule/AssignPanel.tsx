@@ -4,7 +4,7 @@ import { Loader2, UserCheck, AlertCircle } from "lucide-react";
 import { profilesApi, certificationLevelsApi, leagueQualificationsApi } from "@/lib/resources";
 import { api, ApiError } from "@/lib/api";
 import { useTranslation } from "@/i18n/I18nProvider";
-import type { Profile, Assignment } from "@shared/types";
+import type { AssignBoardOfficial, AvailabilityStatus, Profile, Assignment } from "@shared/types";
 import {
   Sheet,
   SheetContent,
@@ -30,10 +30,21 @@ import {
   checkOfficialQualified,
   resolveQualificationRule,
 } from "./qualification";
+import {
+  AVAILABILITY_LABELS,
+  AVAILABILITY_STATUS_SORT,
+  resolveOfficialAvailabilityStatus,
+} from "@/features/assignBoard/assignBoardUtils";
+import { cn } from "@/lib/utils";
 
 interface AssignPanelProps {
   target: AssignTarget | null;
   onClose: () => void;
+  gameHour?: number;
+  boardOfficials?: AssignBoardOfficial[];
+  /** Pre-select official when opening from hour focus */
+  preselectedOfficialId?: string | null;
+  onAssigned?: () => void;
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -41,18 +52,46 @@ const TYPE_LABELS: Record<string, string> = {
   LINESMAN: "Linesman",
 };
 
+const AVAILABILITY_BADGE_CLASS: Record<AvailabilityStatus, string> = {
+  available: "text-emerald-600 dark:text-emerald-400",
+  no_submission: "text-amber-600 dark:text-amber-400",
+  unavailable: "text-muted-foreground",
+  busy: "text-amber-700 dark:text-amber-500",
+};
+
 function interpolate(template: string, vars: Record<string, string>): string {
   return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => vars[key] ?? "");
 }
 
-export function AssignPanel({ target, onClose }: AssignPanelProps) {
+type ProfileRow = {
+  profile: Profile;
+  qualified: boolean;
+  reason?: string;
+  levelName?: string;
+  availabilityStatus?: AvailabilityStatus;
+  canAssign: boolean;
+};
+
+export function AssignPanel({
+  target,
+  onClose,
+  gameHour,
+  boardOfficials,
+  preselectedOfficialId,
+  onAssigned,
+}: AssignPanelProps) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [selectedId, setSelectedId] = useState<string>("");
+  const useBoardAvail = gameHour != null && boardOfficials != null && boardOfficials.length > 0;
 
   useEffect(() => {
-    setSelectedId(target?.assignment?.official_id ?? "");
-  }, [target]);
+    if (preselectedOfficialId) {
+      setSelectedId(preselectedOfficialId);
+    } else {
+      setSelectedId(target?.assignment?.official_id ?? "");
+    }
+  }, [target, preselectedOfficialId]);
 
   const { data: profiles = [], isLoading: loadingProfiles } = useQuery<Profile[]>({
     queryKey: ["profiles"],
@@ -71,6 +110,11 @@ export function AssignPanel({ target, onClose }: AssignPanelProps) {
 
   const game = target?.game;
 
+  const boardById = useMemo(
+    () => new Map(boardOfficials?.map((o) => [o.official_id, o]) ?? []),
+    [boardOfficials]
+  );
+
   const rule = useMemo(() => {
     if (!game) return null;
     return resolveQualificationRule(game, qualifications);
@@ -78,33 +122,69 @@ export function AssignPanel({ target, onClose }: AssignPanelProps) {
 
   const levelsById = useMemo(() => buildLevelsById(levels), [levels]);
 
-  const profileRows = useMemo(() => {
-    if (!rule) {
-      return profiles.map((p) => ({
-        profile: p,
-        qualified: true as const,
-        reason: undefined as string | undefined,
-        levelName: levelsById.get(p.official_level_id ?? "")?.name,
-      }));
-    }
+  const profileRows: ProfileRow[] = useMemo(() => {
+    const source = useBoardAvail
+      ? profiles.filter((p) => boardById.has(p.id))
+      : profiles;
 
-    const minSort = rule.minimumLevel.sort_order;
-    const minName = rule.minimumLevel.name;
-    const leagueLabel = rule.leagueKey;
+    const rows: ProfileRow[] = source.map((p) => {
+      let qualified = true;
+      let reason: string | undefined;
+      let levelName = levelsById.get(p.official_level_id ?? "")?.name;
 
-    return profiles.map((p) => {
-      const result = checkOfficialQualified(p, minSort, levelsById, minName, leagueLabel);
-      return {
-        profile: p,
-        qualified: result.qualified,
-        reason: result.reason,
-        levelName: result.officialLevelName,
-      };
+      if (rule) {
+        const result = checkOfficialQualified(
+          p,
+          rule.minimumLevel.sort_order,
+          levelsById,
+          rule.minimumLevel.name,
+          rule.leagueKey
+        );
+        qualified = result.qualified;
+        reason = result.reason;
+        levelName = result.officialLevelName;
+      }
+
+      let availabilityStatus: AvailabilityStatus | undefined;
+      if (useBoardAvail && gameHour != null) {
+        const boardRow = boardById.get(p.id);
+        if (boardRow) {
+          availabilityStatus = resolveOfficialAvailabilityStatus(boardRow, gameHour);
+        }
+      }
+
+      const canAssign =
+        qualified &&
+        (!availabilityStatus ||
+          availabilityStatus === "available" ||
+          availabilityStatus === "no_submission");
+
+      return { profile: p, qualified, reason, levelName, availabilityStatus, canAssign };
     });
-  }, [profiles, rule, levelsById]);
 
-  const qualifiedRows = useMemo(
-    () => profileRows.filter((r) => r.qualified),
+    if (useBoardAvail) {
+      return rows.sort((a, b) => {
+        const sa = a.availabilityStatus
+          ? AVAILABILITY_STATUS_SORT[a.availabilityStatus]
+          : 99;
+        const sb = b.availabilityStatus
+          ? AVAILABILITY_STATUS_SORT[b.availabilityStatus]
+          : 99;
+        if (sa !== sb) return sa - sb;
+        return (a.profile.full_name ?? a.profile.email).localeCompare(
+          b.profile.full_name ?? b.profile.email
+        );
+      });
+    }
+    return rows;
+  }, [profiles, rule, levelsById, useBoardAvail, boardById, gameHour]);
+
+  const assignableRows = useMemo(
+    () => profileRows.filter((r) => r.canAssign),
+    [profileRows]
+  );
+  const blockedRows = useMemo(
+    () => profileRows.filter((r) => r.qualified && !r.canAssign),
     [profileRows]
   );
   const unqualifiedRows = useMemo(
@@ -113,17 +193,17 @@ export function AssignPanel({ target, onClose }: AssignPanelProps) {
   );
 
   const selectedRow = profileRows.find((r) => r.profile.id === selectedId);
-  const selectedQualified = selectedRow?.qualified ?? false;
+  const selectedCanAssign = selectedRow?.canAssign ?? false;
 
   useEffect(() => {
-    if (!selectedId || !rule) return;
-    if (!selectedQualified) setSelectedId("");
-  }, [selectedId, selectedQualified, rule]);
+    if (!selectedId) return;
+    if (!selectedCanAssign) setSelectedId("");
+  }, [selectedId, selectedCanAssign]);
 
   const { mutate: save, isPending } = useMutation({
     mutationFn: async () => {
       if (!target || !selectedId) throw new Error("No official selected");
-      if (!selectedQualified) throw new Error(t("assign.cannotAssign"));
+      if (!selectedCanAssign) throw new Error(t("assign.cannotAssign"));
       if (target.assignment) {
         return api.put<Assignment>(`/api/assignments/${target.assignment.id}`, {
           official_id: selectedId,
@@ -139,6 +219,7 @@ export function AssignPanel({ target, onClose }: AssignPanelProps) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["schedule-games"] });
+      onAssigned?.();
       toast.success(target?.assignment ? "Assignment updated." : "Official assigned.");
       onClose();
     },
@@ -168,6 +249,33 @@ export function AssignPanel({ target, onClose }: AssignPanelProps) {
       ? t("assign.noRule")
       : null;
 
+  function renderOfficialOption(row: ProfileRow, disabled?: boolean) {
+    const p = row.profile;
+    return (
+      <SelectItem key={p.id} value={p.id} disabled={disabled}>
+        <span className={disabled ? "text-muted-foreground" : "font-medium"}>
+          {p.full_name ?? p.email}
+        </span>
+        {row.levelName ? (
+          <span className="ml-2 text-xs text-muted-foreground">{row.levelName}</span>
+        ) : null}
+        {row.availabilityStatus ? (
+          <span
+            className={cn(
+              "ml-2 text-xs font-medium",
+              AVAILABILITY_BADGE_CLASS[row.availabilityStatus]
+            )}
+          >
+            · {AVAILABILITY_LABELS[row.availabilityStatus]}
+          </span>
+        ) : null}
+        {row.reason ? (
+          <span className="ml-1 text-xs text-muted-foreground">({row.reason})</span>
+        ) : null}
+      </SelectItem>
+    );
+  }
+
   return (
     <Sheet open={!!target} onOpenChange={(open) => { if (!open) onClose(); }}>
       <SheetContent className="w-full sm:max-w-md flex flex-col gap-0 p-0">
@@ -178,8 +286,10 @@ export function AssignPanel({ target, onClose }: AssignPanelProps) {
           </SheetTitle>
           <SheetDescription>
             {isReassign
-              ? `Currently: ${target.assignment?.official?.full_name ?? "Unknown"}`
-              : "Choose an official to fill this position."}
+              ? `Currently: ${target?.assignment?.official?.full_name ?? "Unknown"}`
+              : useBoardAvail
+                ? "Officials sorted by availability for this game time."
+                : "Choose an official to fill this position."}
           </SheetDescription>
         </SheetHeader>
 
@@ -211,12 +321,15 @@ export function AssignPanel({ target, onClose }: AssignPanelProps) {
           </div>
         ) : null}
 
-        {selectedId && !selectedQualified ? (
+        {selectedId && !selectedCanAssign ? (
           <div className="px-6 pt-3">
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription className="text-xs">
-                {selectedRow?.reason ?? t("assign.cannotAssign")}
+                {selectedRow?.reason ??
+                  (selectedRow?.availabilityStatus
+                    ? `${AVAILABILITY_LABELS[selectedRow.availabilityStatus]} for this time`
+                    : t("assign.cannotAssign"))}
               </AlertDescription>
             </Alert>
           </div>
@@ -237,33 +350,21 @@ export function AssignPanel({ target, onClose }: AssignPanelProps) {
                 <SelectValue placeholder={t("assign.chooseOfficial")} />
               </SelectTrigger>
               <SelectContent className="max-h-[min(320px,50vh)]">
-                {qualifiedRows.map(({ profile: p, levelName }) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    <span className="font-medium">{p.full_name ?? p.email}</span>
-                    {levelName ? (
-                      <span className="ml-2 text-xs text-muted-foreground">{levelName}</span>
-                    ) : null}
-                    {p.official_type ? (
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        {TYPE_LABELS[p.official_type] ?? p.official_type}
-                      </span>
-                    ) : null}
-                  </SelectItem>
-                ))}
+                {assignableRows.map((row) => renderOfficialOption(row))}
+                {blockedRows.length > 0 ? (
+                  <>
+                    <div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground pointer-events-none">
+                      Not available / busy
+                    </div>
+                    {blockedRows.map((row) => renderOfficialOption(row, true))}
+                  </>
+                ) : null}
                 {unqualifiedRows.length > 0 ? (
                   <>
                     <div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground pointer-events-none">
                       {t("assign.notQualified")}
                     </div>
-                    {unqualifiedRows.map(({ profile: p, reason, levelName }) => (
-                      <SelectItem key={p.id} value={p.id} disabled>
-                        <span className="text-muted-foreground">
-                          {p.full_name ?? p.email}
-                          {levelName ? ` — ${levelName}` : ` — ${t("assign.noLevelSet")}`}
-                          {reason ? ` (${reason})` : ""}
-                        </span>
-                      </SelectItem>
-                    ))}
+                    {unqualifiedRows.map((row) => renderOfficialOption(row, true))}
                   </>
                 ) : null}
               </SelectContent>
@@ -277,7 +378,7 @@ export function AssignPanel({ target, onClose }: AssignPanelProps) {
           </Button>
           <Button
             size="sm"
-            disabled={!selectedId || !selectedQualified || isPending}
+            disabled={!selectedId || !selectedCanAssign || isPending}
             onClick={() => save()}
             className="gap-1.5"
           >

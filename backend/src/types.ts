@@ -204,7 +204,7 @@ export const ProfileCreateSchema = z.object({
   email: z.string().email(),
   full_name: z.string().optional(),
   jersey_number: z.string().optional(),
-  date_of_birth: z.string().optional(),
+  date_of_birth: z.string().nullable().optional(),
   cell_phone: z.string().optional(),
   role: RoleEnum.default("OFFICIAL"),
   official_type: OfficialTypeEnum.optional(),
@@ -262,6 +262,7 @@ export const GameSchema = z.object({
   away_team: nullableText,
   league_tier: nullableText,
   league_type: LeagueTypeEnum.nullable().optional(),
+  is_cash_game: z.boolean().default(false),
   notes: nullableText,
   game_number: z.number().int().nullable().optional(),
   gamesheet_external_id: nullableText,
@@ -276,17 +277,18 @@ export type Game = z.infer<typeof GameSchema>;
 
 export const GameCreateSchema = z.object({
   date_time: z.string(),
-  venue_id: uuid.optional(),
+  venue_id: uuid.nullable().optional(),
   status: GameStatusEnum.default("UNASSIGNED"),
   home_team: z.string().optional(),
   away_team: z.string().optional(),
-  league_tier: z.string().optional(),
-  league_type: LeagueTypeEnum.optional(),
-  notes: z.string().optional(),
-  game_number: z.number().int().optional(),
-  gamesheet_external_id: z.string().optional(),
-  home_score: z.number().int().optional(),
-  away_score: z.number().int().optional(),
+  league_tier: nullableText,
+  league_type: LeagueTypeEnum.nullable().optional(),
+  is_cash_game: z.boolean().optional(),
+  notes: nullableText,
+  game_number: z.number().int().nullable().optional(),
+  gamesheet_external_id: nullableText,
+  home_score: z.number().int().nullable().optional(),
+  away_score: z.number().int().nullable().optional(),
 });
 export type GameCreate = z.infer<typeof GameCreateSchema>;
 
@@ -364,6 +366,105 @@ export const AssignmentCreateSchema = z.object({
 });
 export type AssignmentCreate = z.infer<typeof AssignmentCreateSchema>;
 
+// ─── assign board ─────────────────────────────────────────────────────────────
+
+export const AvailabilityStatusEnum = z.enum([
+  "available",
+  "unavailable",
+  "busy",
+  "no_submission",
+]);
+export type AvailabilityStatus = z.infer<typeof AvailabilityStatusEnum>;
+
+export const AssignBoardSlotHintEnum = z.enum(["open_green", "open_amber", "open_red", "filled"]);
+export type AssignBoardSlotHint = z.infer<typeof AssignBoardSlotHintEnum>;
+
+const assignBoardOfficialSnap = z.object({
+  id: uuid,
+  full_name: nullableText,
+  official_type: OfficialTypeEnum.nullable().optional(),
+  email: z.string().optional(),
+});
+
+export const AssignBoardAssignmentSchema = AssignmentSchema.extend({
+  official: assignBoardOfficialSnap.nullable().optional(),
+});
+
+export const AssignBoardSlotSchema = z.object({
+  position: PositionEnum,
+  assignment: AssignBoardAssignmentSchema.nullable().optional(),
+  available_qualified_count: z.number().int(),
+  slot_hint: AssignBoardSlotHintEnum,
+});
+
+export const AssignBoardGameSchema = GameSchema.extend({
+  venue: z
+    .object({
+      id: uuid,
+      name: z.string(),
+      timezone: z.string().optional(),
+      zone_id: uuid.nullable().optional(),
+    })
+    .nullable()
+    .optional(),
+  assignments: z.array(AssignBoardAssignmentSchema).default([]),
+  game_hour: z.number().int(),
+  slots: z.array(AssignBoardSlotSchema),
+});
+
+export const AssignBoardOfficialAssignmentSchema = z.object({
+  game_id: uuid,
+  position: PositionEnum,
+  game_hour: z.number().int(),
+});
+
+export const AssignBoardOfficialSchema = z.object({
+  official_id: uuid,
+  full_name: nullableText,
+  email: z.string(),
+  official_type: OfficialTypeEnum.nullable().optional(),
+  official_level_id: uuid.nullable().optional(),
+  official_level_name: z.string().nullable().optional(),
+  time_slots: z.array(z.number().int()),
+  busy_hours: z.array(z.number().int()),
+  assignments_today: z.array(AssignBoardOfficialAssignmentSchema),
+});
+
+export const AssignBoardSummarySchema = z.object({
+  games_count: z.number().int(),
+  open_slots_count: z.number().int(),
+  officials_count: z.number().int(),
+  officials_with_submission_count: z.number().int(),
+  /** ISO date_time of earliest game with at least one open slot, or null */
+  next_unassigned_game_at: z.string().nullable().optional(),
+  pending_assignments_count: z.number().int().default(0),
+  confirmed_assignments_count: z.number().int().default(0),
+  declined_assignments_count: z.number().int().default(0),
+  games_awaiting_confirmation_count: z.number().int().default(0),
+});
+export type AssignBoardSummary = z.infer<typeof AssignBoardSummarySchema>;
+
+export const AssignBoardHintsSchema = z.object({
+  games_on_date: z.number().int(),
+  games_in_zone: z.number().int(),
+  games_without_rink: z.number().int(),
+  /** Rink names for games on this date that have no zone assigned */
+  rinks_missing_zone: z.array(z.string()),
+  games_other_zone: z.number().int(),
+});
+export type AssignBoardHints = z.infer<typeof AssignBoardHintsSchema>;
+
+export const AssignBoardSchema = z.object({
+  date: z.string(),
+  zone_id: uuid,
+  zone_name: z.string(),
+  games: z.array(AssignBoardGameSchema),
+  officials: z.array(AssignBoardOfficialSchema),
+  summary: AssignBoardSummarySchema,
+  hints: AssignBoardHintsSchema.optional(),
+});
+export type AssignBoard = z.infer<typeof AssignBoardSchema>;
+
 export const AssignmentUpdateSchema = z.object({
   official_id: uuid.optional(),
   status: AssignmentStatusEnum.optional(),
@@ -430,6 +531,25 @@ export const PositionRatesSchema = z.object({
 });
 export type PositionRates = z.infer<typeof PositionRatesSchema>;
 
+export const AssigningFeeModeEnum = z.enum(["flat", "percent"]);
+export type AssigningFeeMode = z.infer<typeof AssigningFeeModeEnum>;
+
+export const AssigningFeeSchema = z.object({
+  amount: z.number().min(0),
+  mode: AssigningFeeModeEnum,
+});
+export type AssigningFee = z.infer<typeof AssigningFeeSchema>;
+
+/** Per-division row in settings.pay_rates.by_league_tier */
+export const DivisionPayRatesRowSchema = PositionRatesSchema.extend({
+  TIMEKEEPER: z.number().min(0).optional().default(0),
+  travel_pay_enabled: z.boolean().default(true),
+  cost_per_km: z.number().min(0).optional(),
+  assigning_fee: AssigningFeeSchema.default({ amount: 10, mode: "percent" }),
+  cash_games_default: z.boolean().default(false),
+});
+export type DivisionPayRatesRow = z.infer<typeof DivisionPayRatesRowSchema>;
+
 /** Default row: position fees + global mileage rate. */
 export const PayRatePositionSchema = PositionRatesSchema.extend({
   cost_per_km: z.number(),
@@ -446,7 +566,7 @@ export const PayRatesMatrixSchema = z.object({
       "Adult Rec": PositionRatesSchema.optional(),
     })
     .optional(),
-  by_league_tier: z.record(z.string(), PositionRatesSchema).optional(),
+  by_league_tier: z.record(z.string(), DivisionPayRatesRowSchema).optional(),
 });
 export type PayRatesMatrix = z.infer<typeof PayRatesMatrixSchema>;
 
@@ -462,12 +582,16 @@ export const AssignmentPayLineSchema = z.object({
   away_team: nullableText,
   venue_name: nullableText,
   position: PositionEnum,
+  gross_game_fee: z.number(),
+  assigning_fee_deduction: z.number(),
   game_fee: z.number(),
   mileage_km: z.number(),
   mileage_payout: z.number(),
   payout_approved: z.boolean(),
   rate_source: RateSourceEnum.optional(),
   rate_label: nullableText,
+  cash_game: z.boolean().optional(),
+  travel_pay_enabled: z.boolean().optional(),
 });
 export type AssignmentPayLine = z.infer<typeof AssignmentPayLineSchema>;
 
@@ -492,6 +616,32 @@ export const SeasonBoundsSchema = z.object({
   label: z.string(),
 });
 export type SeasonBounds = z.infer<typeof SeasonBoundsSchema>;
+
+export const DeclinedAssignmentGameSchema = z.object({
+  assignment_id: uuid,
+  game_id: uuid,
+  position: PositionEnum,
+  date_time: isoTs,
+  home_team: nullableText,
+  away_team: nullableText,
+  venue_name: z.string().nullable().optional(),
+  league_tier: nullableText,
+});
+export type DeclinedAssignmentGame = z.infer<typeof DeclinedAssignmentGameSchema>;
+
+export const OfficialDeclineStatRowSchema = z.object({
+  official_id: uuid,
+  declined_count: z.number().int(),
+  games: z.array(DeclinedAssignmentGameSchema).default([]),
+});
+export type OfficialDeclineStatRow = z.infer<typeof OfficialDeclineStatRowSchema>;
+
+export const OfficialDeclineStatsSchema = z.object({
+  period: SeasonBoundsSchema,
+  by_official: z.array(OfficialDeclineStatRowSchema),
+  total_declined: z.number().int(),
+});
+export type OfficialDeclineStats = z.infer<typeof OfficialDeclineStatsSchema>;
 
 export const PayReportSchema = z.object({
   officials: z.array(OfficialPaySummarySchema),

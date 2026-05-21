@@ -20,5 +20,6 @@ export function useRosterDisplayFields(): RosterDisplayField[] {
     },
     staleTime: 60_000,
   });
-  return data ?? DEFAULT_ROSTER_DISPLAY_FIELDS;
+  const fields = data ?? DEFAULT_ROSTER_DISPLAY_FIELDS;
+  return fields.length > 0 ? fields : DEFAULT_ROSTER_DISPLAY_FIELDS;
 }

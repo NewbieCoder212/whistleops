@@ -13,6 +13,7 @@ export const fr: Messages = {
   nav: {
     dashboard: "Tableau de bord",
     schedule: "Horaire",
+    assignmentBoard: "Tableau d'affectation",
     availability: "Disponibilités",
     profile: "Profil",
     officials: "Officiels",
@@ -25,6 +26,7 @@ export const fr: Messages = {
   navDesc: {
     dashboard: "Aperçu et statistiques",
     schedule: "Matchs et affectations",
+    assignmentBoard: "Matchs et disponibilités (jour)",
     availability: "Vue des disponibilités des officiels",
     officials: "Profils et effectif",
     finance: "Paie et approbations",

@@ -8,7 +8,8 @@ import { DEFAULT_ROSTER_DISPLAY_FIELDS, IncidentNotifyEmailsSchema } from "../ty
 import { parseJson } from "../lib/validate";
 import { requireWorkspaceStaff } from "../middleware/auth";
 import { requireWorkspaceHeader } from "../middleware/workspaceScope";
-import { SettingUpsertSchema } from "../types";
+import { parsePayRates } from "../lib/payCalculation";
+import { PayRatesMatrixSchema, SettingUpsertSchema } from "../types";
 
 const settingsRouter = new Hono();
 settingsRouter.use("*", requireWorkspaceHeader);
@@ -88,12 +89,25 @@ settingsRouter.put("/:key", requireWorkspaceStaff, async (c) =>
     if (body instanceof Response) return body;
     const key = c.req.param("key");
     const workspaceId = c.get("workspaceId");
+
+    let value = body.value;
+    if (key === "pay_rates") {
+      const parsed = PayRatesMatrixSchema.safeParse(parsePayRates(body.value));
+      if (!parsed.success) {
+        return c.json(
+          { error: { message: "Invalid pay rates matrix", code: "VALIDATION_ERROR" } },
+          400
+        );
+      }
+      value = parsed.data;
+    }
+
     const { data, error } = await serviceDb()
       .from("settings")
       .upsert({
         workspace_id: workspaceId,
         key,
-        value: body.value,
+        value,
         updated_at: new Date().toISOString(),
       })
       .select("*")

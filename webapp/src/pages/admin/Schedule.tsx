@@ -1,8 +1,12 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
+import type { Zone } from "@shared/types";
+import { Link } from "react-router-dom";
 import { CalendarDays, AlertCircle, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AddGameModal } from "@/features/games/AddGameModal";
+import { EditGameModal } from "@/features/games/EditGameModal";
+import { DeleteGameDialog } from "@/features/games/DeleteGameDialog";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { ScheduleGameCard } from "@/features/schedule/ScheduleGameCard";
 import { AssignPanel } from "@/features/schedule/AssignPanel";
@@ -25,6 +29,7 @@ import { useProfile } from "@/hooks/useProfile";
 import type { Position } from "@shared/types";
 import type { ScheduleGame, ScheduleAssignment, AssignTarget } from "@/features/schedule/scheduleTypes";
 import { toDateKey, formatDateHeader } from "@/features/schedule/scheduleTypes";
+import { gameHasDeclinedAssignment } from "@/features/assignBoard/assignBoardUtils";
 
 export default function Schedule() {
   const { user } = useAuth();
@@ -36,6 +41,8 @@ export default function Schedule() {
   const [incidentGame, setIncidentGame] = useState<ScheduleGame | null>(null);
   const [filters, setFilters] = useState<ScheduleFilterState>(defaultScheduleFilters);
   const [addGameOpen, setAddGameOpen] = useState(false);
+  const [editGame, setEditGame] = useState<ScheduleGame | null>(null);
+  const [deleteGame, setDeleteGame] = useState<ScheduleGame | null>(null);
 
   useEffect(() => {
     if (!profile || zoneInitialized.current) return;
@@ -46,7 +53,7 @@ export default function Schedule() {
 
     if (saved) {
       defaultZone = saved;
-    } else if (profile.role === "ASSIGNOR" && profile.zone_id) {
+    } else if (profile.zone_id) {
       defaultZone = profile.zone_id;
     }
 
@@ -60,6 +67,22 @@ export default function Schedule() {
     saveZonePreference(user?.id, next.zoneId);
   };
 
+  const { data: zones = [] } = useQuery<Zone[]>({
+    queryKey: ["zones"],
+    queryFn: () => api.get<Zone[]>("/api/zones"),
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const scheduleZoneName =
+    filters.zoneId != null
+      ? zones.find((z) => z.id === filters.zoneId)?.name ?? null
+      : null;
+
+  const zonesById = useMemo(
+    () => new Map(zones.map((z) => [z.id, z.name])),
+    [zones]
+  );
+
   const queryString = buildGamesQueryParams(filters);
 
   const { data: games, isLoading, isError } = useQuery<ScheduleGame[]>({
@@ -71,9 +94,10 @@ export default function Schedule() {
     if (!games) return [];
     return games.filter((g) => {
       if (filters.leagueType && g.league_type !== filters.leagueType) return false;
+      if (filters.declinedOnly && !gameHasDeclinedAssignment(g)) return false;
       return true;
     });
-  }, [games, filters.leagueType]);
+  }, [games, filters.leagueType, filters.declinedOnly]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, ScheduleGame[]>();
@@ -106,7 +130,11 @@ export default function Schedule() {
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Schedule</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Filter by zone and date, then click any slot to assign an official.
+              Filter by zone and date, then click any slot to assign an official.{" "}
+              <Link to="/admin/assignment-board" className="text-primary hover:underline">
+                Assignment Board
+              </Link>{" "}
+              shows games and availability for one day.
             </p>
           </div>
           <Button
@@ -140,9 +168,15 @@ export default function Schedule() {
               <CalendarDays className="h-6 w-6" />
             </div>
             <div className="text-center">
-              <p className="text-sm font-medium">No games match filters</p>
+              <p className="text-sm font-medium">
+                {filters.declinedOnly
+                  ? "No games with declined assignments"
+                  : "No games match filters"}
+              </p>
               <p className="text-xs mt-0.5">
-                Try a wider date range, another zone, or add a game.
+                {filters.declinedOnly
+                  ? "Try a wider date range or another zone."
+                  : "Try a wider date range, another zone, or add a game."}
               </p>
               <Button
                 size="sm"
@@ -163,6 +197,12 @@ export default function Schedule() {
                   <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     {group.label}
                   </span>
+                  <Link
+                    to={`/admin/assignment-board?date=${group.key}`}
+                    className="text-[10px] text-primary hover:underline"
+                  >
+                    Assignment board
+                  </Link>
                   <span className="text-[10px] text-muted-foreground/50 border-b border-dashed border-border flex-1" />
                   <span className="text-[10px] text-muted-foreground">
                     {group.games.length} game{group.games.length !== 1 ? "s" : ""}
@@ -173,11 +213,14 @@ export default function Schedule() {
                     <ScheduleGameCard
                       key={game.id}
                       game={game}
+                      zonesById={zonesById}
                       onSlotClick={(position, assignment) =>
                         handleSlotClick(game, position, assignment)
                       }
                       onMessageClick={() => setMessageGame(game)}
                       onIncidentClick={() => setIncidentGame(game)}
+                      onEditClick={() => setEditGame(game)}
+                      onDeleteClick={() => setDeleteGame(game)}
                     />
                   ))}
                 </div>
@@ -187,7 +230,19 @@ export default function Schedule() {
         )}
       </div>
 
-      <AddGameModal open={addGameOpen} onClose={() => setAddGameOpen(false)} />
+      <AddGameModal
+        open={addGameOpen}
+        onClose={() => setAddGameOpen(false)}
+        scheduleZoneId={filters.zoneId}
+        scheduleZoneName={scheduleZoneName}
+      />
+      <EditGameModal
+        game={editGame}
+        onClose={() => setEditGame(null)}
+        scheduleZoneId={filters.zoneId}
+        scheduleZoneName={scheduleZoneName}
+      />
+      <DeleteGameDialog game={deleteGame} onClose={() => setDeleteGame(null)} />
       <AssignPanel target={target} onClose={() => setTarget(null)} />
       <MessageAssignedModal game={messageGame} onClose={() => setMessageGame(null)} />
       <IncidentReportModal game={incidentGame} onClose={() => setIncidentGame(null)} />

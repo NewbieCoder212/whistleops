@@ -18,6 +18,27 @@ import {
 const gamesRouter = new Hono();
 gamesRouter.use("*", requireWorkspaceHeader);
 
+// ── GET /api/games/distinct-league-tiers ──────────────────────────────────────
+gamesRouter.get("/distinct-league-tiers", requireWorkspaceStaff, async (c) =>
+  runRoute(c, async () => {
+    const workspaceId = c.get("workspaceId");
+    const { data, error } = await serviceDb()
+      .from("games")
+      .select("league_tier")
+      .eq("workspace_id", workspaceId)
+      .not("league_tier", "is", null)
+      .neq("league_tier", "");
+    if (error) return dbError(c, error);
+
+    const tiers = new Set<string>();
+    for (const row of data ?? []) {
+      const t = (row.league_tier as string)?.trim();
+      if (t) tiers.add(t);
+    }
+    return Array.from(tiers).sort((a, b) => a.localeCompare(b));
+  })
+);
+
 gamesRouter.get("/", async (c) =>
   runRoute(c, async () => {
     const workspaceId = c.get("workspaceId");

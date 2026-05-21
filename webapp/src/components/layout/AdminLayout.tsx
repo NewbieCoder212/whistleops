@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Settings, Shield, ChevronRight, Users, Upload,
-  CalendarDays, DollarSign, LogOut, LayoutDashboard, Menu, X, CalendarRange,
+  CalendarDays, DollarSign, LogOut, LayoutDashboard, Menu, X, CalendarRange, LayoutGrid,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -16,6 +16,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 const navKeys = [
   { labelKey: "nav.dashboard", descKey: "navDesc.dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
   { labelKey: "nav.schedule", descKey: "navDesc.schedule", href: "/admin/schedule", icon: CalendarDays },
+  { labelKey: "nav.assignmentBoard", descKey: "navDesc.assignmentBoard", href: "/admin/assignment-board", icon: LayoutGrid },
   { labelKey: "nav.availability", descKey: "navDesc.availability", href: "/admin/availability", icon: CalendarRange },
   { labelKey: "nav.officials", descKey: "navDesc.officials", href: "/admin/officials", icon: Users },
   { labelKey: "nav.finance", descKey: "navDesc.finance", href: "/admin/finance", icon: DollarSign },

@@ -12,6 +12,7 @@ import Officials from "./pages/admin/Officials";
 import AdminConfig from "./pages/admin/AdminConfig";
 import ImportGames from "./pages/admin/ImportGames";
 import Schedule from "./pages/admin/Schedule";
+import AssignmentBoardPage from "./pages/admin/AssignmentBoard";
 import Finance from "./pages/admin/Finance";
 import AvailabilityOverview from "./pages/admin/AvailabilityOverview";
 import OfficialSchedule from "./pages/dashboard/Schedule";
@@ -41,6 +42,7 @@ const App = () => (
             <Route path="/admin/config" element={<AdminConfig />} />
             <Route path="/admin/import-games" element={<ImportGames />} />
             <Route path="/admin/schedule" element={<Schedule />} />
+            <Route path="/admin/assignment-board" element={<AssignmentBoardPage />} />
             <Route path="/admin/finance" element={<Finance />} />
             <Route path="/admin/availability" element={<AvailabilityOverview />} />
           </Route>

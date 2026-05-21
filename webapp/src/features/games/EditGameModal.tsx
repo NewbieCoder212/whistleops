@@ -1,14 +1,15 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus } from "lucide-react";
+import { Loader2, Pencil } from "lucide-react";
 import { Link } from "react-router-dom";
-import type { GameCreate, LeagueType } from "@shared/types";
+import type { GameStatus, GameUpdate, LeagueType } from "@shared/types";
 import { gamesApi, venuesApi } from "@/lib/resources";
-import { buildGameDateTimeIso } from "./buildGameDateTime";
+import { buildGameDateTimeIso, parseGameDateTimeIso } from "./buildGameDateTime";
 import {
   filterVenuesForScheduleZone,
   validateVenueForScheduleZone,
 } from "./gameVenueZone";
+import type { ScheduleGame } from "@/features/schedule/scheduleTypes";
 import {
   Dialog,
   DialogContent,
@@ -32,37 +33,46 @@ import {
 import { toast } from "sonner";
 
 const LEAGUE_TYPES: LeagueType[] = ["Minor", "Senior", "Adult Rec"];
+const GAME_STATUSES: GameStatus[] = ["UNASSIGNED", "ASSIGNED", "COMPLETED", "CANCELLED"];
 
-const emptyForm = () => ({
-  date: "",
-  time: "",
-  venueId: "",
-  homeTeam: "",
-  awayTeam: "",
-  leagueTier: "",
-  leagueType: "" as "" | LeagueType,
-  gameNumber: "",
-  gamesheetId: "",
-  notes: "",
-  isCashGame: false,
-});
+function gameToForm(game: ScheduleGame) {
+  const dt = parseGameDateTimeIso(game.date_time);
+  return {
+    date: dt?.date ?? "",
+    time: dt?.time ?? "",
+    venueId: game.venue_id ?? game.venue?.id ?? "",
+    homeTeam: game.home_team ?? "",
+    awayTeam: game.away_team ?? "",
+    leagueTier: game.league_tier ?? "",
+    leagueType: (game.league_type ?? "") as "" | LeagueType,
+    gameNumber: game.game_number != null ? String(game.game_number) : "",
+    gamesheetId: game.gamesheet_external_id ?? "",
+    notes: game.notes ?? "",
+    isCashGame: game.is_cash_game === true,
+    status: game.status,
+  };
+}
 
-interface AddGameModalProps {
-  open: boolean;
+interface EditGameModalProps {
+  game: ScheduleGame | null;
   onClose: () => void;
-  /** Active schedule zone filter — scopes rink list and validation. */
   scheduleZoneId?: string | null;
   scheduleZoneName?: string | null;
 }
 
-export function AddGameModal({
-  open,
+export function EditGameModal({
+  game,
   onClose,
   scheduleZoneId = null,
   scheduleZoneName = null,
-}: AddGameModalProps) {
+}: EditGameModalProps) {
   const qc = useQueryClient();
-  const [form, setForm] = useState(emptyForm);
+  const open = game != null;
+  const [form, setForm] = useState(() => (game ? gameToForm(game) : null));
+
+  useEffect(() => {
+    if (game) setForm(gameToForm(game));
+  }, [game]);
 
   const { data: venues = [], isLoading: venuesLoading } = useQuery({
     queryKey: ["venues", "assignable"],
@@ -71,24 +81,23 @@ export function AddGameModal({
   });
 
   const venueOptions = useMemo(
-    () => filterVenuesForScheduleZone(venues, scheduleZoneId),
-    [venues, scheduleZoneId]
+    () =>
+      filterVenuesForScheduleZone(venues, scheduleZoneId, form?.venueId || game?.venue_id),
+    [venues, scheduleZoneId, form?.venueId, game?.venue_id]
   );
 
-  const resetAndClose = () => {
-    setForm(emptyForm());
-    onClose();
-  };
-
   const { mutate, isPending } = useMutation({
-    mutationFn: (body: GameCreate) => gamesApi.create(body),
+    mutationFn: (body: GameUpdate) => gamesApi.update(game!.id, body),
     onSuccess: () => {
-      toast.success("Game added to schedule.");
+      toast.success("Game updated.");
       qc.invalidateQueries({ queryKey: ["schedule-games"] });
-      resetAndClose();
+      qc.invalidateQueries({ queryKey: ["assign-board"] });
+      onClose();
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  if (!game || !form) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,22 +119,18 @@ export function AddGameModal({
       return;
     }
 
-    const body: GameCreate = {
+    const body: GameUpdate = {
       date_time,
       home_team: home,
       away_team: away,
-      status: "UNASSIGNED",
-      ...(form.venueId ? { venue_id: form.venueId } : {}),
-      ...(form.leagueTier.trim() ? { league_tier: form.leagueTier.trim() } : {}),
-      ...(form.leagueType ? { league_type: form.leagueType } : {}),
-      ...(form.gameNumber.trim()
-        ? { game_number: parseInt(form.gameNumber, 10) }
-        : {}),
-      ...(form.gamesheetId.trim()
-        ? { gamesheet_external_id: form.gamesheetId.trim() }
-        : {}),
-      ...(form.notes.trim() ? { notes: form.notes.trim() } : {}),
-      ...(form.isCashGame ? { is_cash_game: true } : {}),
+      status: form.status,
+      venue_id: form.venueId || null,
+      league_tier: form.leagueTier.trim() || null,
+      league_type: form.leagueType || null,
+      game_number: form.gameNumber.trim() ? parseInt(form.gameNumber, 10) : null,
+      gamesheet_external_id: form.gamesheetId.trim() || null,
+      notes: form.notes.trim() || null,
+      is_cash_game: form.isCashGame,
     };
 
     if (body.game_number != null && Number.isNaN(body.game_number)) {
@@ -137,53 +142,52 @@ export function AddGameModal({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && resetAndClose()}>
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Add game
+            <Pencil className="h-4 w-4" />
+            Edit game
           </DialogTitle>
           <DialogDescription>
-            Zone is set by the rink you choose (not a separate field). You can also bulk-import
-            from CSV.
+            {game.home_team} vs {game.away_team}. Zone is set by the rink.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="add-game-date">Date</Label>
+              <Label htmlFor="edit-game-date">Date</Label>
               <Input
-                id="add-game-date"
+                id="edit-game-date"
                 type="date"
                 required
                 value={form.date}
-                onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+                onChange={(e) => setForm((f) => f && { ...f, date: e.target.value })}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="add-game-time">Time</Label>
+              <Label htmlFor="edit-game-time">Time</Label>
               <Input
-                id="add-game-time"
+                id="edit-game-time"
                 type="time"
                 required
                 value={form.time}
-                onChange={(e) => setForm((f) => ({ ...f, time: e.target.value }))}
+                onChange={(e) => setForm((f) => f && { ...f, time: e.target.value })}
               />
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="add-game-venue">Venue (rink)</Label>
+            <Label htmlFor="edit-game-venue">Venue (rink)</Label>
             <Select
               value={form.venueId || "__none__"}
               onValueChange={(v) =>
-                setForm((f) => ({ ...f, venueId: v === "__none__" ? "" : v }))
+                setForm((f) => f && { ...f, venueId: v === "__none__" ? "" : v })
               }
               disabled={venuesLoading}
             >
-              <SelectTrigger id="add-game-venue">
+              <SelectTrigger id="edit-game-venue">
                 <SelectValue placeholder={venuesLoading ? "Loading…" : "Select venue"} />
               </SelectTrigger>
               <SelectContent>
@@ -199,18 +203,14 @@ export function AddGameModal({
             </Select>
             {scheduleZoneId ? (
               <p className="text-xs text-muted-foreground">
-                Zone comes from the rink. Showing rinks in{" "}
+                Showing rinks in{" "}
                 <span className="font-medium text-foreground">
                   {scheduleZoneName ?? "this zone"}
                 </span>
                 .
               </p>
             ) : null}
-            {!venuesLoading && venues.length === 0 ? (
-              <p className="text-xs text-muted-foreground">
-                No assignable venues — add rinks in Configuration first.
-              </p>
-            ) : !venuesLoading && scheduleZoneId && venueOptions.length === 0 ? (
+            {!venuesLoading && scheduleZoneId && venueOptions.length === 0 ? (
               <p className="text-xs text-muted-foreground">
                 No assignable rinks in this zone. Assign zones under{" "}
                 <Link to="/admin/config" className="text-primary hover:underline">
@@ -223,33 +223,32 @@ export function AddGameModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="add-game-home">Home team</Label>
+              <Label htmlFor="edit-game-home">Home team</Label>
               <Input
-                id="add-game-home"
+                id="edit-game-home"
                 required
                 value={form.homeTeam}
-                onChange={(e) => setForm((f) => ({ ...f, homeTeam: e.target.value }))}
+                onChange={(e) => setForm((f) => f && { ...f, homeTeam: e.target.value })}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="add-game-away">Away team</Label>
+              <Label htmlFor="edit-game-away">Away team</Label>
               <Input
-                id="add-game-away"
+                id="edit-game-away"
                 required
                 value={form.awayTeam}
-                onChange={(e) => setForm((f) => ({ ...f, awayTeam: e.target.value }))}
+                onChange={(e) => setForm((f) => f && { ...f, awayTeam: e.target.value })}
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="add-game-tier">League / tier</Label>
+              <Label htmlFor="edit-game-tier">League / tier</Label>
               <Input
-                id="add-game-tier"
-                placeholder="e.g. U15 A"
+                id="edit-game-tier"
                 value={form.leagueTier}
-                onChange={(e) => setForm((f) => ({ ...f, leagueTier: e.target.value }))}
+                onChange={(e) => setForm((f) => f && { ...f, leagueTier: e.target.value })}
               />
             </div>
             <div className="space-y-2">
@@ -257,10 +256,9 @@ export function AddGameModal({
               <Select
                 value={form.leagueType || "__none__"}
                 onValueChange={(v) =>
-                  setForm((f) => ({
-                    ...f,
-                    leagueType: v === "__none__" ? "" : (v as LeagueType),
-                  }))
+                  setForm((f) =>
+                    f ? { ...f, leagueType: v === "__none__" ? "" : (v as LeagueType) } : f
+                  )
                 }
               >
                 <SelectTrigger>
@@ -280,51 +278,71 @@ export function AddGameModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="add-game-number">Game number</Label>
+              <Label htmlFor="edit-game-number">Game number</Label>
               <Input
-                id="add-game-number"
+                id="edit-game-number"
                 type="number"
                 min={1}
                 value={form.gameNumber}
-                onChange={(e) => setForm((f) => ({ ...f, gameNumber: e.target.value }))}
+                onChange={(e) => setForm((f) => f && { ...f, gameNumber: e.target.value })}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="add-game-gs">Gamesheet ID</Label>
-              <Input
-                id="add-game-gs"
-                placeholder="Optional — for webhook sync"
-                value={form.gamesheetId}
-                onChange={(e) => setForm((f) => ({ ...f, gamesheetId: e.target.value }))}
-              />
+              <Label>Status</Label>
+              <Select
+                value={form.status}
+                onValueChange={(v) =>
+                  setForm((f) => f && { ...f, status: v as GameStatus })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {GAME_STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit-game-gs">Gamesheet ID</Label>
+            <Input
+              id="edit-game-gs"
+              value={form.gamesheetId}
+              onChange={(e) => setForm((f) => f && { ...f, gamesheetId: e.target.value })}
+            />
           </div>
 
           <div className="flex items-center gap-2">
             <Checkbox
-              id="add-game-cash"
+              id="edit-game-cash"
               checked={form.isCashGame}
               onCheckedChange={(v) =>
-                setForm((f) => ({ ...f, isCashGame: v === true }))
+                setForm((f) => f && { ...f, isCashGame: v === true })
               }
             />
-            <Label htmlFor="add-game-cash" className="text-sm font-normal cursor-pointer">
+            <Label htmlFor="edit-game-cash" className="text-sm font-normal cursor-pointer">
               Cash game (paid at rink)
             </Label>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="add-game-notes">Notes</Label>
+            <Label htmlFor="edit-game-notes">Notes</Label>
             <Textarea
-              id="add-game-notes"
+              id="edit-game-notes"
               rows={2}
               value={form.notes}
-              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+              onChange={(e) => setForm((f) => f && { ...f, notes: e.target.value })}
             />
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={resetAndClose} disabled={isPending}>
+            <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
               Cancel
             </Button>
             <Button type="submit" disabled={isPending} className="gap-1.5">
@@ -334,7 +352,7 @@ export function AddGameModal({
                   Saving…
                 </>
               ) : (
-                "Add game"
+                "Save changes"
               )}
             </Button>
           </DialogFooter>
