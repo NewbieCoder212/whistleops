@@ -4,6 +4,7 @@ import { TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { OfficialPaySummary } from "@shared/types";
+import { formatGameDateTime } from "@/lib/atlanticTime";
 
 const POSITION_LABELS: Record<string, string> = {
   REF1: "Referee 1",
@@ -38,8 +39,7 @@ function fmt(amount: number): string {
 
 function fmtDate(isoStr: string): string {
   if (!isoStr) return "—";
-  const d = new Date(isoStr);
-  return d.toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" });
+  return formatGameDateTime(isoStr);
 }
 
 interface OfficialPayRowProps {

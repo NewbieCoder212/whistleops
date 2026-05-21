@@ -7,25 +7,44 @@ import {
   resolveAssignmentPay,
   resolveSeasonBounds,
 } from "../lib/payCalculation";
+import { gameMatchesZoneFilter, loadZoneGameFilter } from "../lib/payReportZone";
 import { parseJson } from "../lib/validate";
-import { requireWorkspaceStaff } from "../middleware/auth";
+import { requirePayrollAccess } from "../middleware/auth";
 import { requireWorkspaceHeader } from "../middleware/workspaceScope";
 import { PayApproveRequestSchema } from "../types";
 
 const payReportRouter = new Hono();
-payReportRouter.use("*", requireWorkspaceHeader);
+payReportRouter.use("*", requireWorkspaceHeader, requirePayrollAccess);
 
 // ── GET /api/pay-report ───────────────────────────────────────────────────────
-// Aggregates CONFIRMED assignments per official. Optional ?year= or ?season_start/end.
-payReportRouter.get("/", requireWorkspaceStaff, async (c) =>
+// Aggregates CONFIRMED assignments per official. Optional ?year=, ?zoneId=, season bounds.
+payReportRouter.get("/", async (c) =>
   runRoute(c, async () => {
     const db = serviceDb();
     const workspaceId = c.get("workspaceId");
+    const zoneId = c.req.query("zoneId")?.trim() || undefined;
     const season = resolveSeasonBounds({
       season_start: c.req.query("season_start"),
       season_end: c.req.query("season_end"),
       year: c.req.query("year"),
     });
+
+    let zoneName: string | null = null;
+    let zoneVenueIds: Set<string> | null = null;
+    if (zoneId) {
+      const { data: zone, error: zoneErr } = await db
+        .from("zones")
+        .select("id, name")
+        .eq("id", zoneId)
+        .maybeSingle();
+      if (zoneErr) return dbError(c, zoneErr);
+      if (!zone) {
+        return c.json({ error: { message: "Zone not found", code: "NOT_FOUND" } }, 404);
+      }
+      zoneName = zone.name as string;
+      const filter = await loadZoneGameFilter(workspaceId, zoneId);
+      zoneVenueIds = filter.zoneVenueIds;
+    }
 
     const { data: rateSetting } = await db
       .from("settings")
@@ -40,7 +59,7 @@ payReportRouter.get("/", requireWorkspaceStaff, async (c) =>
       .from("assignments")
       .select(
         "id, game_id, official_id, position, status, payout_approved, " +
-        "game:games(id, date_time, home_team, away_team, league_tier, league_type, is_cash_game, venue:venues(name)), " +
+        "game:games(id, date_time, venue_id, home_team, away_team, league_tier, league_type, is_cash_game, venue:venues(name, zone_id)), " +
         "official:profiles(id, full_name, email, official_type, distance_km)"
       )
       .eq("status", "CONFIRMED")
@@ -52,12 +71,13 @@ payReportRouter.get("/", requireWorkspaceStaff, async (c) =>
     type GameSnap = {
       id: string;
       date_time: string;
+      venue_id: string | null;
       home_team: string | null;
       away_team: string | null;
       league_tier: string | null;
       league_type: string | null;
       is_cash_game: boolean | null;
-      venue: { name: string } | null;
+      venue: { name: string; zone_id: string | null } | null;
     };
     type OfficialSnap = {
       id: string;
@@ -115,6 +135,16 @@ payReportRouter.get("/", requireWorkspaceStaff, async (c) =>
       const game = raw.game;
       if (!official || !game) continue;
       if (!isGameInSeason(game.date_time, season)) continue;
+      if (
+        zoneId &&
+        !gameMatchesZoneFilter(
+          { venue_id: game.venue_id, venue: game.venue },
+          zoneId,
+          zoneVenueIds
+        )
+      ) {
+        continue;
+      }
 
       const position = raw.position as "REF1" | "REF2" | "LINE1" | "LINE2" | "SUPERVISOR";
       const gameCtx = {
@@ -176,23 +206,41 @@ payReportRouter.get("/", requireWorkspaceStaff, async (c) =>
       officials,
       pay_rates: payRates,
       season,
+      zone_id: zoneId ?? null,
+      zone_name: zoneName,
       generated_at: new Date().toISOString(),
     };
   })
 );
 
 // ── POST /api/pay-report/approve ──────────────────────────────────────────────
-payReportRouter.post("/approve", requireWorkspaceStaff, async (c) =>
+payReportRouter.post("/approve", async (c) =>
   runRoute(c, async () => {
     const body = await parseJson(c, PayApproveRequestSchema);
     if (body instanceof Response) return body;
     const workspaceId = c.get("workspaceId");
 
-    const { data: gameIds } = await serviceDb()
-      .from("games")
-      .select("id")
-      .eq("workspace_id", workspaceId);
-    const ids = (gameIds ?? []).map((g) => g.id);
+    let ids: string[];
+    if (body.zone_id) {
+      const { data: zone, error: zoneErr } = await serviceDb()
+        .from("zones")
+        .select("id")
+        .eq("id", body.zone_id)
+        .maybeSingle();
+      if (zoneErr) return dbError(c, zoneErr);
+      if (!zone) {
+        return c.json({ error: { message: "Zone not found", code: "NOT_FOUND" } }, 404);
+      }
+      const filter = await loadZoneGameFilter(workspaceId, body.zone_id);
+      ids = Array.from(filter.gameIds);
+    } else {
+      const { data: gameIds } = await serviceDb()
+        .from("games")
+        .select("id")
+        .eq("workspace_id", workspaceId);
+      ids = (gameIds ?? []).map((g) => g.id);
+    }
+
     if (ids.length === 0) return { approved_count: 0 };
 
     const { data, error } = await serviceDb()

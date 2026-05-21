@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { serviceDb } from "../db";
 import { dbError, runRoute } from "../lib/handleDb";
+import { loadBookedHoursByOfficial, loadBookedHoursForOfficial } from "../lib/assignmentBookedHours";
 import {
   isDateInAvailabilityWindow,
   parseAvailabilityWindow,
@@ -55,6 +56,7 @@ availabilityRouter.get("/overview", requireWorkspaceHeader, requireWorkspaceStaf
     const startQ = c.req.query("start");
     const endQ = c.req.query("end");
     const officialId = c.req.query("officialId");
+    const zoneId = c.req.query("zoneId")?.trim() || undefined;
 
     if (!startQ || !endQ) {
       return c.json(
@@ -81,6 +83,7 @@ availabilityRouter.get("/overview", requireWorkspaceHeader, requireWorkspaceStaf
       .order("full_name", { ascending: true });
 
     if (officialId) profilesQ = profilesQ.eq("id", officialId);
+    if (zoneId) profilesQ = profilesQ.eq("zone_id", zoneId);
 
     const { data: profiles, error: profErr } = await profilesQ;
     if (profErr) return dbError(c, profErr);
@@ -102,12 +105,21 @@ availabilityRouter.get("/overview", requireWorkspaceHeader, requireWorkspaceStaf
       slotsByOfficial.set(slot.official_id, list);
     }
 
+    const profileIds = (profiles ?? []).map((p) => p.id as string);
+    const bookedMap = await loadBookedHoursByOfficial(
+      workspaceId,
+      profileIds,
+      startQ,
+      endQ
+    );
+
     const officials = (profiles ?? []).map((p) => ({
       official_id: p.id,
       full_name: p.full_name,
       email: p.email,
       zone_id: p.zone_id,
       slots: slotsByOfficial.get(p.id) ?? [],
+      booked_hours: bookedMap.get(p.id as string) ?? {},
     }));
 
     return { start: startQ, end: endQ, officials };
@@ -156,6 +168,17 @@ availabilityRouter.get("/", requireAuth, requireWorkspaceHeader, async (c) =>
 
     const { data, error } = await q;
     if (error) return dbError(c, error);
+
+    if (startQ && endQ) {
+      const booked_hours = await loadBookedHoursForOfficial(
+        workspaceId,
+        profileId,
+        startQ,
+        endQ
+      );
+      return { slots: data ?? [], booked_hours };
+    }
+
     return data ?? [];
   })
 );
@@ -189,7 +212,18 @@ availabilityRouter.put("/:date", requireAuth, requireWorkspaceHeader, async (c) 
       return c.json({ error: { message: "Profile not found", code: "NOT_FOUND" } }, 404);
     }
 
-    const periods = derivePeriods(body.time_slots);
+    const bookedOnDate = await loadBookedHoursForOfficial(
+      workspaceId,
+      profileId,
+      date,
+      date
+    );
+    const bookedSet = new Set(bookedOnDate[date] ?? []);
+    const time_slots = [...new Set([...body.time_slots, ...bookedSet])].sort(
+      (a, b) => a - b
+    );
+
+    const periods = derivePeriods(time_slots);
 
     const { data, error } = await serviceDb()
       .from("availability")
@@ -198,7 +232,7 @@ availabilityRouter.put("/:date", requireAuth, requireWorkspaceHeader, async (c) 
           official_id: profileId,
           workspace_id: workspaceId,
           date,
-          time_slots: body.time_slots,
+          time_slots,
           ...periods,
         },
         { onConflict: "workspace_id,official_id,date" }

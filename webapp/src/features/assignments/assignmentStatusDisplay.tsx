@@ -2,6 +2,7 @@ import type { AssignmentStatus } from "@shared/types";
 import { cn } from "@/lib/utils";
 
 export const ASSIGNMENT_STATUS_LABELS: Record<AssignmentStatus, string> = {
+  DRAFT: "Draft",
   PENDING: "Pending",
   CONFIRMED: "Confirmed",
   REJECTED: "Declined",
@@ -10,6 +11,7 @@ export const ASSIGNMENT_STATUS_LABELS: Record<AssignmentStatus, string> = {
 
 /** Compact label for tight slots (board table). */
 export const ASSIGNMENT_STATUS_SHORT: Record<AssignmentStatus, string> = {
+  DRAFT: "Draft",
   PENDING: "Pending",
   CONFIRMED: "OK",
   REJECTED: "No",
@@ -18,6 +20,8 @@ export const ASSIGNMENT_STATUS_SHORT: Record<AssignmentStatus, string> = {
 
 export function filledSlotSurfaceClass(status: AssignmentStatus): string {
   switch (status) {
+    case "DRAFT":
+      return "bg-violet-500/10 border-violet-500/35 text-violet-900 dark:text-violet-100";
     case "PENDING":
       return "bg-amber-500/10 border-amber-500/35 text-amber-900 dark:text-amber-100";
     case "CONFIRMED":
@@ -33,6 +37,8 @@ export function filledSlotSurfaceClass(status: AssignmentStatus): string {
 
 export function assignmentStatusBadgeClass(status: AssignmentStatus): string {
   switch (status) {
+    case "DRAFT":
+      return "bg-violet-500/15 text-violet-800 dark:text-violet-200 border-violet-500/30";
     case "PENDING":
       return "bg-amber-500/15 text-amber-800 dark:text-amber-200 border-amber-500/30";
     case "CONFIRMED":

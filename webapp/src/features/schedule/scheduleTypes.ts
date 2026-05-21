@@ -1,4 +1,9 @@
 import type { Position, AssignmentStatus, GameStatus } from "@shared/types";
+import {
+  ATLANTIC_TIMEZONE,
+  formatGameTime,
+  toDateKeyFromIso,
+} from "@/lib/atlanticTime";
 
 export type OfficialSnap = {
   id: string;
@@ -66,32 +71,32 @@ export const GAME_STATUS_STYLES: Record<GameStatus, string> = {
   CANCELLED: "text-muted-foreground line-through",
 };
 
+/** Calendar date of a game in Atlantic (YYYY-MM-DD). */
 export function toDateKey(isoStr: string): string {
-  const d = new Date(isoStr);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return toDateKeyFromIso(isoStr, ATLANTIC_TIMEZONE);
 }
+
+export { formatGameTime };
 
 export function formatDateHeader(key: string): string {
   const [y, m, d] = key.split("-").map(Number);
+  const iso = `${key}T12:00:00.000Z`;
+  const anchor = new Date(iso);
+  if (!Number.isNaN(anchor.getTime())) {
+    return anchor.toLocaleDateString("en-CA", {
+      timeZone: ATLANTIC_TIMEZONE,
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+  }
   const date = new Date(y!, m! - 1, d!);
   return new Intl.DateTimeFormat("en-CA", {
+    timeZone: ATLANTIC_TIMEZONE,
     weekday: "long",
     month: "long",
     day: "numeric",
     year: "numeric",
   }).format(date);
-}
-
-export function formatGameTime(isoStr: string): { timeStr: string; dayAbbr: string } {
-  const d = new Date(isoStr);
-  const timeStr = d.toLocaleTimeString("en-CA", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-  const dayAbbr = d.toLocaleDateString("en-CA", { weekday: "short" });
-  return { timeStr, dayAbbr };
 }

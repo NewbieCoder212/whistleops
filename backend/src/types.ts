@@ -24,7 +24,13 @@ export type Position = z.infer<typeof PositionEnum>;
 export const GameStatusEnum = z.enum(["UNASSIGNED", "ASSIGNED", "COMPLETED", "CANCELLED"]);
 export type GameStatus = z.infer<typeof GameStatusEnum>;
 
-export const AssignmentStatusEnum = z.enum(["PENDING", "CONFIRMED", "REJECTED", "CANCELLED"]);
+export const AssignmentStatusEnum = z.enum([
+  "DRAFT",
+  "PENDING",
+  "CONFIRMED",
+  "REJECTED",
+  "CANCELLED",
+]);
 export type AssignmentStatus = z.infer<typeof AssignmentStatusEnum>;
 
 /** Provincial league tier classification. */
@@ -362,7 +368,7 @@ export const AssignmentCreateSchema = z.object({
   game_id: uuid,
   official_id: uuid,
   position: PositionEnum,
-  status: AssignmentStatusEnum.default("PENDING"),
+  status: AssignmentStatusEnum.default("DRAFT"),
 });
 export type AssignmentCreate = z.infer<typeof AssignmentCreateSchema>;
 
@@ -437,12 +443,34 @@ export const AssignBoardSummarySchema = z.object({
   officials_with_submission_count: z.number().int(),
   /** ISO date_time of earliest game with at least one open slot, or null */
   next_unassigned_game_at: z.string().nullable().optional(),
+  draft_assignments_count: z.number().int().default(0),
   pending_assignments_count: z.number().int().default(0),
   confirmed_assignments_count: z.number().int().default(0),
   declined_assignments_count: z.number().int().default(0),
   games_awaiting_confirmation_count: z.number().int().default(0),
 });
 export type AssignBoardSummary = z.infer<typeof AssignBoardSummarySchema>;
+
+export const AssignBoardPublishSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  zoneId: uuid,
+  leagueType: z.string().optional(),
+});
+export type AssignBoardPublish = z.infer<typeof AssignBoardPublishSchema>;
+
+export const AssignBoardPublishResultSchema = z.object({
+  published_count: z.number().int(),
+  officials_notified: z.number().int(),
+  emails_sent: z.number().int(),
+  emails_failed: z.array(
+    z.object({
+      email: z.string(),
+      error: z.string(),
+    })
+  ),
+  email_skipped: z.boolean().optional(),
+});
+export type AssignBoardPublishResult = z.infer<typeof AssignBoardPublishResultSchema>;
 
 export const AssignBoardHintsSchema = z.object({
   games_on_date: z.number().int(),
@@ -647,6 +675,8 @@ export const PayReportSchema = z.object({
   officials: z.array(OfficialPaySummarySchema),
   pay_rates: PayRatesMatrixSchema,
   season: SeasonBoundsSchema,
+  zone_id: uuid.nullable().optional(),
+  zone_name: z.string().nullable().optional(),
   generated_at: isoTs,
 });
 export type PayReport = z.infer<typeof PayReportSchema>;
@@ -654,6 +684,8 @@ export type PayReport = z.infer<typeof PayReportSchema>;
 /** POST /api/pay-report/approve request body. */
 export const PayApproveRequestSchema = z.object({
   official_id: uuid,
+  /** When set, only assignments for games in this zone are approved. */
+  zone_id: uuid.optional(),
 });
 export type PayApproveRequest = z.infer<typeof PayApproveRequestSchema>;
 
@@ -683,6 +715,13 @@ export const AvailabilityUpsertSchema = z.object({
   time_slots: z.array(z.number().int().min(0).max(23)),
 });
 export type AvailabilityUpsert = z.infer<typeof AvailabilityUpsertSchema>;
+
+/** GET /api/availability?start=&end= — slots plus hours blocked by game assignments. */
+export const AvailabilityWeekBundleSchema = z.object({
+  slots: z.array(AvailabilitySlotSchema),
+  booked_hours: z.record(z.string(), z.array(z.number().int().min(0).max(23))),
+});
+export type AvailabilityWeekBundle = z.infer<typeof AvailabilityWeekBundleSchema>;
 
 // ─── earnings summary ─────────────────────────────────────────────────────────
 

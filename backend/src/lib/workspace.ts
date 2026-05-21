@@ -5,6 +5,9 @@ export const DEFAULT_WORKSPACE_ID = "00000000-0000-4000-8000-000000000001";
 
 const STAFF_ROLES = ["ADMIN", "ASSIGNOR", "FINANCE", "SUPERVISOR"] as const;
 
+/** Roles that may open Finance & Payroll (supervisors excluded). */
+const PAYROLL_ROLES = ["ADMIN", "ASSIGNOR", "FINANCE"] as const;
+
 export function workspaceIdFromRequest(c: Context): string | null {
   const header =
     c.req.header("x-workspace-id") ??
@@ -39,6 +42,12 @@ export async function getWorkspaceMembership(
 
 export function isStaffRole(role: string): boolean {
   return (STAFF_ROLES as readonly string[]).includes(role);
+}
+
+export function canAccessPayroll(profileRole?: string, workspaceRole?: string): boolean {
+  if (profileRole === "ADMIN") return true;
+  const role = workspaceRole ?? profileRole ?? "";
+  return (PAYROLL_ROLES as readonly string[]).includes(role);
 }
 
 export async function addWorkspaceMember(

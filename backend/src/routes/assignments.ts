@@ -4,6 +4,7 @@ import { serviceDb } from "../db";
 import { dbError, runRoute } from "../lib/handleDb";
 import { parseJson } from "../lib/validate";
 import { requireAuth, requireWorkspaceStaff } from "../middleware/auth";
+import { isStaffRole } from "../lib/workspace";
 import { requireWorkspaceHeader } from "../middleware/workspaceScope";
 import {
   notifyAssignorsOfAssignmentResponse,
@@ -136,7 +137,11 @@ assignmentsRouter.get("/mine", requireAuth, requireWorkspaceHeader, async (c) =>
       .eq("game.workspace_id", c.get("workspaceId"))
       .order("created_at", { ascending: false });
 
-    if (status) q = q.eq("status", status);
+    if (status) {
+      q = q.eq("status", status);
+    } else {
+      q = q.neq("status", "DRAFT");
+    }
 
     const { data, error } = await q;
     if (error) return dbError(c, error);
@@ -204,7 +209,7 @@ assignmentsRouter.post("/", requireWorkspaceHeader, requireWorkspaceStaff, async
   })
 );
 
-assignmentsRouter.put("/:id", requireAuth, async (c) =>
+assignmentsRouter.put("/:id", requireAuth, requireWorkspaceHeader, async (c) =>
   runRoute(c, async () => {
     const body = await parseJson(c, AssignmentUpdateSchema);
     if (body instanceof Response) return body;
@@ -213,12 +218,51 @@ assignmentsRouter.put("/:id", requireAuth, async (c) =>
 
     const { data: before, error: beforeErr } = await serviceDb()
       .from("assignments")
-      .select("id, game_id, status")
+      .select("id, game_id, status, official_id")
       .eq("id", assignmentId)
       .maybeSingle();
     if (beforeErr) return dbError(c, beforeErr);
     if (!before) {
       return c.json({ error: { message: "Assignment not found", code: "NOT_FOUND" } }, 404);
+    }
+
+    const workspaceRole = c.get("workspaceRole");
+    const profileRole = c.get("profileRole");
+    const isStaff =
+      isStaffRole(workspaceRole ?? "") || profileRole === "ADMIN";
+
+    const officialResponseOnly =
+      body.status != null &&
+      (body.status === "CONFIRMED" || body.status === "REJECTED") &&
+      body.official_id == null &&
+      body.position == null;
+
+    if (officialResponseOnly) {
+      const { data: profile } = await serviceDb()
+        .from("profiles")
+        .select("id")
+        .eq("user_id", c.get("userId"))
+        .maybeSingle();
+      if (!profile || before.official_id !== profile.id) {
+        return c.json({ error: { message: "Forbidden", code: "FORBIDDEN" } }, 403);
+      }
+      if (before.status !== "PENDING") {
+        return c.json(
+          {
+            error: {
+              message: "Only pending assignments can be accepted or declined",
+              code: "VALIDATION_ERROR",
+            },
+          },
+          422
+        );
+      }
+    } else if (!isStaff) {
+      return c.json({ error: { message: "Workspace staff role required", code: "FORBIDDEN" } }, 403);
+    }
+
+    if (body.status === "DRAFT" && !isStaff) {
+      return c.json({ error: { message: "Forbidden", code: "FORBIDDEN" } }, 403);
     }
 
     if (body.official_id) {

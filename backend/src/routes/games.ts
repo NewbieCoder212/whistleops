@@ -3,6 +3,7 @@ import { serviceDb } from "../db";
 import { isResendConfigured } from "../env";
 import { sendBulkEmail } from "../lib/email";
 import { dbError, runRoute } from "../lib/handleDb";
+import { buildGameDateTimeIso } from "../lib/gameDateTime";
 import { normalizeLeagueType } from "../lib/payCalculation";
 import { parseJson } from "../lib/validate";
 import { requireWorkspaceStaff } from "../middleware/auth";
@@ -189,15 +190,14 @@ gamesRouter.post("/bulk", requireWorkspaceStaff, async (c) =>
       date: string,
       time: string
     ): { iso: string } | { error: string } => {
-      // Accept: YYYY-MM-DD
       const dateParts = date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
       if (!dateParts)
         return { error: `Invalid date "${date}" — expected YYYY-MM-DD` };
       const timeParts = time.match(/^(\d{1,2}):(\d{2})$/);
       if (!timeParts)
         return { error: `Invalid time "${time}" — expected HH:MM` };
-      const isoStr = `${date}T${time.padStart(5, "0")}:00.000Z`;
-      if (isNaN(Date.parse(isoStr)))
+      const isoStr = buildGameDateTimeIso(date, time.padStart(5, "0"));
+      if (!isoStr)
         return { error: `Cannot parse date+time: "${date} ${time}"` };
       return { iso: isoStr };
     };

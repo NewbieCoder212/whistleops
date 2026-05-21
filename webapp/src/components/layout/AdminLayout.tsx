@@ -7,6 +7,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
+import { canAccessPayroll } from "@/lib/payrollAccess";
 import { useTranslation } from "@/i18n/I18nProvider";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
@@ -16,7 +17,12 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 const navKeys = [
   { labelKey: "nav.dashboard", descKey: "navDesc.dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
   { labelKey: "nav.schedule", descKey: "navDesc.schedule", href: "/admin/schedule", icon: CalendarDays },
-  { labelKey: "nav.assignmentBoard", descKey: "navDesc.assignmentBoard", href: "/admin/assignment-board", icon: LayoutGrid },
+  {
+    labelKey: "nav.assignmentBoard",
+    descKey: "navDesc.assignmentBoard",
+    href: "/admin/assignment-board",
+    icon: LayoutGrid,
+  },
   { labelKey: "nav.availability", descKey: "navDesc.availability", href: "/admin/availability", icon: CalendarRange },
   { labelKey: "nav.officials", descKey: "navDesc.officials", href: "/admin/officials", icon: Users },
   { labelKey: "nav.finance", descKey: "navDesc.finance", href: "/admin/finance", icon: DollarSign },
@@ -24,13 +30,16 @@ const navKeys = [
   { labelKey: "nav.config", descKey: "navDesc.config", href: "/admin/config", icon: Settings },
 ] as const;
 
-function NavList({ onNav }: { onNav?: () => void }) {
+function NavList({ onNav, showPayroll }: { onNav?: () => void; showPayroll: boolean }) {
   const { pathname } = useLocation();
   const { t } = useTranslation();
+  const items = showPayroll
+    ? navKeys
+    : navKeys.filter((item) => item.href !== "/admin/finance");
 
   return (
     <nav className="flex-1 px-2 py-4 space-y-0.5">
-      {navKeys.map((item) => {
+      {items.map((item) => {
         const active = pathname.startsWith(item.href);
         return (
           <Link
@@ -70,6 +79,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
   };
 
   const displayName = profile?.full_name ?? user?.email ?? "";
+  const showPayroll = canAccessPayroll(profile?.role);
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
@@ -91,7 +101,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           </span>
         </div>
 
-        <NavList />
+        <NavList showPayroll={showPayroll} />
 
         <div className="px-3 py-3 border-t border-sidebar-border">
           <WorkspaceSwitcher />
@@ -160,7 +170,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
             </Button>
           </div>
 
-          <NavList onNav={() => setMobileOpen(false)} />
+          <NavList showPayroll={showPayroll} onNav={() => setMobileOpen(false)} />
 
           <div className="px-3 py-3 border-t border-sidebar-border">
             <WorkspaceSwitcher />

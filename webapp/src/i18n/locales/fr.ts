@@ -25,8 +25,8 @@ export const fr: Messages = {
   },
   navDesc: {
     dashboard: "Aperçu et statistiques",
-    schedule: "Matchs et affectations",
-    assignmentBoard: "Matchs et disponibilités (jour)",
+    schedule: "Semaine : matchs et messages",
+    assignmentBoard: "Affectations du jour",
     availability: "Vue des disponibilités des officiels",
     officials: "Profils et effectif",
     finance: "Paie et approbations",

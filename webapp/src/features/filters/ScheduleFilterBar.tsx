@@ -18,6 +18,7 @@ import {
   addDaysIso,
   startOfWeekIso,
   endOfWeekIso,
+  zoneSelectLabel,
 } from "./scheduleFilterUtils";
 
 export type { ScheduleFilterState } from "./scheduleFilterUtils";
@@ -28,10 +29,20 @@ export const LEAGUE_TYPES = ["Minor", "Senior", "Adult Rec"] as const;
 interface ScheduleFilterBarProps {
   value: ScheduleFilterState;
   onChange: (f: ScheduleFilterState) => void;
+  /** Opens Assignment Board for a single day (e.g. Today). */
+  onOpenAssignmentBoard?: (date: string) => void;
+  /** Logged-in user's home zone (for assignor default label). */
+  homeZoneId?: string | null;
   className?: string;
 }
 
-export function ScheduleFilterBar({ value, onChange, className }: ScheduleFilterBarProps) {
+export function ScheduleFilterBar({
+  value,
+  onChange,
+  onOpenAssignmentBoard,
+  homeZoneId,
+  className,
+}: ScheduleFilterBarProps) {
   const { data: zones = [] } = useQuery<Zone[]>({
     queryKey: ["zones"],
     queryFn: () => api.get<Zone[]>("/api/zones"),
@@ -109,7 +120,7 @@ export function ScheduleFilterBar({ value, onChange, className }: ScheduleFilter
               <SelectItem value="all">All Zones</SelectItem>
               {zones.map((z) => (
                 <SelectItem key={z.id} value={z.id}>
-                  {z.name}
+                  {zoneSelectLabel(z.name, z.id, homeZoneId)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -140,18 +151,17 @@ export function ScheduleFilterBar({ value, onChange, className }: ScheduleFilter
 
       <div className="flex flex-wrap items-center gap-2">
         <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-7 text-xs"
-          onClick={() => {
-            const t = todayIso();
-            patch({ dateFrom: t, dateTo: t });
-          }}
-        >
-          Today
-        </Button>
+        {onOpenAssignmentBoard ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => onOpenAssignmentBoard(todayIso())}
+          >
+            Assign today
+          </Button>
+        ) : null}
         <Button
           type="button"
           variant="outline"

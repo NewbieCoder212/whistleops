@@ -79,8 +79,8 @@ export default function Availability() {
           <h1 className="text-xl font-semibold">My Availability</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {lockedZoneName
-              ? `Check the hours you're free each day. Game counts show scheduled games in ${lockedZoneName}.`
-              : "Check the hours you're free each day. Game counts show where you're needed."}
+              ? `Check the hours you're free each day. Game counts show scheduled games in ${lockedZoneName}. Use the date controls to move one day at a time.`
+              : "Check the hours you're free each day. Game counts show where you're needed. Use the date controls to move one day at a time."}
           </p>
         </div>
 

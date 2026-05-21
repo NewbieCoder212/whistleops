@@ -1,14 +1,16 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import type { AvailabilitySlot } from "@shared/types";
+import type { AvailabilitySlot, AvailabilityWeekBundle } from "@shared/types";
+import { AvailabilityDateNav } from "./AvailabilityDateNav";
 import { AvailabilityWeekGrid } from "./AvailabilityWeekGrid";
 import {
   ALL_HOURS,
   getMondayOfWeek,
   getWeekDates,
-  toYMD,
+  todayYmd,
 } from "./availabilityConstants";
+import { shiftWeekBlockDates } from "./availabilityNavigation";
 
 interface AvailabilityCalendarProps {
   gameCounts?: Record<string, number>;
@@ -25,8 +27,8 @@ export function AvailabilityCalendar({ gameCounts = {}, onWeekChange }: Availabi
   });
   const availWindow = windowData?.window;
 
-  const today = new Date();
-  const [weekMonday, setWeekMonday] = useState(() => getMondayOfWeek(today));
+  const [focusDate, setFocusDate] = useState(() => todayYmd());
+  const [weekMonday, setWeekMonday] = useState(() => getMondayOfWeek(new Date()));
   const weekDates = getWeekDates(weekMonday);
   const startDate = weekDates[0]!;
   const endDate = weekDates[6]!;
@@ -34,15 +36,23 @@ export function AvailabilityCalendar({ gameCounts = {}, onWeekChange }: Availabi
   const qc = useQueryClient();
   const queryKey = ["availability", "week", startDate];
 
-  const { data: serverSlots = [] } = useQuery<AvailabilitySlot[]>({
+  const { data: weekBundle } = useQuery<AvailabilityWeekBundle>({
     queryKey,
     queryFn: () =>
-      api.get<AvailabilitySlot[]>(`/api/availability?start=${startDate}&end=${endDate}`),
+      api.get<AvailabilityWeekBundle>(`/api/availability?start=${startDate}&end=${endDate}`),
   });
+
+  const serverSlots = weekBundle?.slots ?? [];
+  const bookedByDate = weekBundle?.booked_hours ?? {};
 
   const [localMap, setLocalMap] = useState<Map<string, Set<number>>>(new Map());
   const pendingDates = useRef(new Set<string>());
   const timers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  const getBookedHours = useCallback(
+    (dateStr: string) => new Set(bookedByDate[dateStr] ?? []),
+    [bookedByDate]
+  );
 
   function getHours(dateStr: string): Set<number> {
     if (localMap.has(dateStr)) return localMap.get(dateStr)!;
@@ -64,13 +74,15 @@ export function AvailabilityCalendar({ gameCounts = {}, onWeekChange }: Availabi
       pendingDates.current.add(dateStr);
       const existing = timers.current.get(dateStr);
       if (existing) clearTimeout(existing);
+      const booked = getBookedHours(dateStr);
+      const merged = new Set([...slots, ...booked]);
       const t = setTimeout(() => {
-        mutation.mutate({ date: dateStr, time_slots: Array.from(slots) });
+        mutation.mutate({ date: dateStr, time_slots: Array.from(merged) });
         timers.current.delete(dateStr);
       }, 400);
       timers.current.set(dateStr, t);
     },
-    [mutation]
+    [mutation, getBookedHours]
   );
 
   function updateSlots(dateStr: string, updater: (prev: Set<number>) => Set<number>) {
@@ -81,6 +93,7 @@ export function AvailabilityCalendar({ gameCounts = {}, onWeekChange }: Availabi
   }
 
   function toggleHour(dateStr: string, hour: number) {
+    if (getBookedHours(dateStr).has(hour)) return;
     updateSlots(dateStr, (prev) => {
       const n = new Set(prev);
       if (n.has(hour)) n.delete(hour);
@@ -90,36 +103,55 @@ export function AvailabilityCalendar({ gameCounts = {}, onWeekChange }: Availabi
   }
 
   function togglePeriod(dateStr: string, periodHours: number[]) {
+    const booked = getBookedHours(dateStr);
+    const editable = periodHours.filter((h) => !booked.has(h));
+    if (editable.length === 0) return;
     updateSlots(dateStr, (prev) => {
-      const allOn = periodHours.every((h) => prev.has(h));
+      const allOn = editable.every((h) => prev.has(h));
       const n = new Set(prev);
-      if (allOn) periodHours.forEach((h) => n.delete(h));
-      else periodHours.forEach((h) => n.add(h));
+      if (allOn) editable.forEach((h) => n.delete(h));
+      else editable.forEach((h) => n.add(h));
       return n;
     });
   }
 
   function toggleAllDay(dateStr: string) {
+    const booked = getBookedHours(dateStr);
+    const editable = ALL_HOURS.filter((h) => !booked.has(h));
     updateSlots(dateStr, (prev) => {
-      const allOn = ALL_HOURS.every((h) => prev.has(h));
-      if (allOn) return new Set<number>();
-      return new Set(ALL_HOURS);
+      const allOn = editable.every((h) => prev.has(h));
+      if (allOn) {
+        const n = new Set(prev);
+        editable.forEach((h) => n.delete(h));
+        return n;
+      }
+      const n = new Set(prev);
+      editable.forEach((h) => n.add(h));
+      return n;
     });
   }
 
-  function shiftWeek(delta: number) {
+  function shiftWeekBlock(deltaWeeks: number) {
     setLocalMap(new Map());
-    setWeekMonday((m) => {
-      const d = new Date(m);
-      d.setDate(d.getDate() + delta * 7);
-      onWeekChange?.(toYMD(d), toYMD(new Date(d.getTime() + 6 * 86400000)));
-      return d;
-    });
+    const next = shiftWeekBlockDates(focusDate, weekMonday, deltaWeeks);
+    setFocusDate(next.focusDate);
+    setWeekMonday(next.weekMonday);
   }
 
   useEffect(() => {
     onWeekChange?.(startDate, endDate);
   }, [startDate, endDate]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!weekDates.includes(focusDate)) {
+      setFocusDate(weekDates[0]!);
+    }
+  }, [weekDates, focusDate]);
+
+  const hasBookedHours = useMemo(
+    () => Object.values(bookedByDate).some((hours) => hours.length > 0),
+    [bookedByDate]
+  );
 
   const windowBanner =
     availWindow?.open_date || availWindow?.close_date ? (
@@ -130,19 +162,33 @@ export function AvailabilityCalendar({ gameCounts = {}, onWeekChange }: Availabi
       </p>
     ) : null;
 
+  const bookedNote = hasBookedHours
+    ? " Red cells are hours you are assigned to a game — you cannot change those."
+    : "";
+
   return (
     <div className="space-y-4">
       {windowBanner}
+      <AvailabilityDateNav
+        focusDate={focusDate}
+        weekMonday={weekMonday}
+        onFocusDateChange={setFocusDate}
+        onWeekMondayChange={setWeekMonday}
+        onWeekBoundaryCross={() => setLocalMap(new Map())}
+        className="rounded-lg border border-border bg-muted/30 px-3 py-3"
+      />
       <AvailabilityWeekGrid
         weekMonday={weekMonday}
-        onPrevWeek={() => shiftWeek(-7)}
-        onNextWeek={() => shiftWeek(7)}
+        onPrevWeek={() => shiftWeekBlock(-1)}
+        onNextWeek={() => shiftWeekBlock(1)}
         getHours={getHours}
+        getBookedHours={getBookedHours}
+        focusDate={focusDate}
         gameCounts={gameCounts}
         onToggleHour={toggleHour}
         onTogglePeriod={togglePeriod}
         onToggleAllDay={toggleAllDay}
-        footerNote='Changes save automatically. "All" selects every hour in that group.'
+        footerNote={`Arrows above move one day. Edit hours below; changes save automatically.${bookedNote}`}
       />
     </div>
   );

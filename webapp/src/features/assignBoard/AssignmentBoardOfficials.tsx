@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
-import type { AssignBoardOfficial } from "@shared/types";
+import type { AssignBoardGame, AssignBoardOfficial } from "@shared/types";
 import {
   PERIODS,
   displayHour,
@@ -18,12 +18,10 @@ import {
 import { cn } from "@/lib/utils";
 
 function cellClass(status: ReturnType<typeof resolveOfficialAvailabilityStatus>, assignedHere: boolean): string {
-  if (assignedHere) return "bg-blue-500/25 border-blue-500/40";
+  if (assignedHere || status === "busy") return "bg-red-500/25 border-red-500/40";
   switch (status) {
     case "available":
       return "bg-emerald-500/20 border-emerald-500/30";
-    case "busy":
-      return "bg-amber-500/25 border-amber-500/40";
     case "no_submission":
       return "bg-muted/40 border-border";
     default:
@@ -31,8 +29,28 @@ function cellClass(status: ReturnType<typeof resolveOfficialAvailabilityStatus>,
   }
 }
 
+const BOOKED_STATUSES = new Set(["DRAFT", "PENDING", "CONFIRMED"]);
+
+function blockedHoursForOfficial(
+  official: AssignBoardOfficial,
+  games?: AssignBoardGame[]
+): Set<number> {
+  const hours = new Set(official.busy_hours);
+  if (!games) return hours;
+  for (const game of games) {
+    for (const slot of game.slots) {
+      const a = slot.assignment;
+      if (!a || !BOOKED_STATUSES.has(a.status)) continue;
+      if (a.official_id !== official.official_id) continue;
+      hours.add(game.game_hour);
+    }
+  }
+  return hours;
+}
+
 interface AssignmentBoardOfficialsProps {
   officials: AssignBoardOfficial[];
+  games?: AssignBoardGame[];
   highlightHour: number | null;
   highlightOfficialId: string | null;
   defaultOpen: boolean;
@@ -42,6 +60,7 @@ interface AssignmentBoardOfficialsProps {
 
 export function AssignmentBoardOfficials({
   officials,
+  games,
   highlightHour,
   highlightOfficialId,
   defaultOpen,
@@ -156,9 +175,7 @@ export function AssignmentBoardOfficials({
               <tbody>
                 {filtered.map((official) => {
                   const rowHighlight = highlightOfficialId === official.official_id;
-                  const assignedHours = new Set(
-                    official.assignments_today.map((a) => a.game_hour)
-                  );
+                  const blockedHours = blockedHoursForOfficial(official, games);
 
                   return (
                     <tr
@@ -178,8 +195,11 @@ export function AssignmentBoardOfficials({
                       </td>
                       {PERIODS.map(({ hours }) =>
                         hours.map((hour) => {
-                          const status = resolveOfficialAvailabilityStatus(official, hour);
-                          const assignedHere = assignedHours.has(hour);
+                          const isBlocked = blockedHours.has(hour);
+                          const status = isBlocked
+                            ? "busy"
+                            : resolveOfficialAvailabilityStatus(official, hour);
+                          const assignedHere = isBlocked;
                           const cellHighlight = highlightHour === hour;
 
                           return (
@@ -195,7 +215,11 @@ export function AssignmentBoardOfficials({
                                   cellClass(status, assignedHere),
                                   cellHighlight && "ring-1 ring-primary/50"
                                 )}
-                                title={`${status}${assignedHere ? " · assigned" : ""}`}
+                                title={
+                                  status === "busy" || assignedHere
+                                    ? "Assigned to a game"
+                                    : status
+                                }
                               />
                             </td>
                           );

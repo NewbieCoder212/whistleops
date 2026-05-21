@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { Zone } from "@shared/types";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { CalendarDays, AlertCircle, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AddGameModal } from "@/features/games/AddGameModal";
@@ -9,7 +9,6 @@ import { EditGameModal } from "@/features/games/EditGameModal";
 import { DeleteGameDialog } from "@/features/games/DeleteGameDialog";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { ScheduleGameCard } from "@/features/schedule/ScheduleGameCard";
-import { AssignPanel } from "@/features/schedule/AssignPanel";
 import { MessageAssignedModal } from "@/features/messaging/MessageAssignedModal";
 import { IncidentReportModal } from "@/features/incidents/IncidentReportModal";
 import {
@@ -19,24 +18,24 @@ import {
   type ScheduleFilterState,
 } from "@/features/filters/ScheduleFilterBar";
 import {
-  loadSavedZoneId,
+  resolveDefaultZoneId,
   saveZonePreference,
 } from "@/features/filters/scheduleFilterUtils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
-import type { Position } from "@shared/types";
-import type { ScheduleGame, ScheduleAssignment, AssignTarget } from "@/features/schedule/scheduleTypes";
+import type { ScheduleGame } from "@/features/schedule/scheduleTypes";
 import { toDateKey, formatDateHeader } from "@/features/schedule/scheduleTypes";
 import { gameHasDeclinedAssignment } from "@/features/assignBoard/assignBoardUtils";
 
 export default function Schedule() {
   const { user } = useAuth();
   const { data: profile } = useProfile();
+  const navigate = useNavigate();
   const zoneInitialized = useRef(false);
+  const [searchParams] = useSearchParams();
 
-  const [target, setTarget] = useState<AssignTarget | null>(null);
   const [messageGame, setMessageGame] = useState<ScheduleGame | null>(null);
   const [incidentGame, setIncidentGame] = useState<ScheduleGame | null>(null);
   const [filters, setFilters] = useState<ScheduleFilterState>(defaultScheduleFilters);
@@ -45,33 +44,36 @@ export default function Schedule() {
   const [deleteGame, setDeleteGame] = useState<ScheduleGame | null>(null);
 
   useEffect(() => {
-    if (!profile || zoneInitialized.current) return;
-    zoneInitialized.current = true;
-
-    const saved = loadSavedZoneId(user?.id);
-    let defaultZone: string | null = null;
-
-    if (saved) {
-      defaultZone = saved;
-    } else if (profile.zone_id) {
-      defaultZone = profile.zone_id;
+    const date = searchParams.get("date");
+    if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      navigate(`/admin/assignment-board?date=${date}`, { replace: true });
     }
-
-    if (defaultZone) {
-      setFilters((f) => ({ ...f, zoneId: defaultZone }));
-    }
-  }, [profile, user?.id]);
-
-  const handleFiltersChange = (next: ScheduleFilterState) => {
-    setFilters(next);
-    saveZonePreference(user?.id, next.zoneId);
-  };
+  }, [searchParams, navigate]);
 
   const { data: zones = [] } = useQuery<Zone[]>({
     queryKey: ["zones"],
     queryFn: () => api.get<Zone[]>("/api/zones"),
     staleTime: 10 * 60 * 1000,
   });
+
+  useEffect(() => {
+    if (!profile || zoneInitialized.current || zones.length === 0) return;
+    zoneInitialized.current = true;
+
+    const defaultZone = resolveDefaultZoneId({
+      userId: user?.id,
+      profileZoneId: profile.zone_id,
+      role: profile.role,
+      zoneIds: zones.map((z) => z.id),
+    });
+
+    setFilters((f) => ({ ...f, zoneId: defaultZone }));
+  }, [profile, user?.id, zones]);
+
+  const handleFiltersChange = (next: ScheduleFilterState) => {
+    setFilters(next);
+    saveZonePreference(user?.id, next.zoneId);
+  };
 
   const scheduleZoneName =
     filters.zoneId != null
@@ -115,14 +117,6 @@ export default function Schedule() {
       }));
   }, [filtered]);
 
-  const handleSlotClick = (
-    game: ScheduleGame,
-    position: Position,
-    assignment: ScheduleAssignment | null
-  ) => {
-    setTarget({ game, position, assignment });
-  };
-
   return (
     <AdminLayout>
       <div className="space-y-5 max-w-5xl">
@@ -130,11 +124,13 @@ export default function Schedule() {
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Schedule</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Filter by zone and date, then click any slot to assign an official.{" "}
+              Week view: browse games, add or edit matchups, message crew, and file incidents.
+              Crew slots are read-only here — click a slot or{" "}
+              <span className="font-medium text-foreground">Assign on board</span> to staff games on the{" "}
               <Link to="/admin/assignment-board" className="text-primary hover:underline">
                 Assignment Board
-              </Link>{" "}
-              shows games and availability for one day.
+              </Link>
+              .
             </p>
           </div>
           <Button
@@ -148,7 +144,14 @@ export default function Schedule() {
         </div>
 
         <div className="rounded-lg border border-border bg-muted/30 px-4 py-3">
-          <ScheduleFilterBar value={filters} onChange={handleFiltersChange} />
+          <ScheduleFilterBar
+            value={filters}
+            onChange={handleFiltersChange}
+            homeZoneId={profile?.zone_id}
+            onOpenAssignmentBoard={(date) =>
+              navigate(`/admin/assignment-board?date=${date}`)
+            }
+          />
         </div>
 
         {isLoading ? (
@@ -199,7 +202,7 @@ export default function Schedule() {
                   </span>
                   <Link
                     to={`/admin/assignment-board?date=${group.key}`}
-                    className="text-[10px] text-primary hover:underline"
+                    className="text-[10px] text-primary hover:underline font-medium"
                   >
                     Assignment board
                   </Link>
@@ -214,9 +217,7 @@ export default function Schedule() {
                       key={game.id}
                       game={game}
                       zonesById={zonesById}
-                      onSlotClick={(position, assignment) =>
-                        handleSlotClick(game, position, assignment)
-                      }
+                      assignBoardHref={`/admin/assignment-board?date=${group.key}`}
                       onMessageClick={() => setMessageGame(game)}
                       onIncidentClick={() => setIncidentGame(game)}
                       onEditClick={() => setEditGame(game)}
@@ -243,7 +244,6 @@ export default function Schedule() {
         scheduleZoneName={scheduleZoneName}
       />
       <DeleteGameDialog game={deleteGame} onClose={() => setDeleteGame(null)} />
-      <AssignPanel target={target} onClose={() => setTarget(null)} />
       <MessageAssignedModal game={messageGame} onClose={() => setMessageGame(null)} />
       <IncidentReportModal game={incidentGame} onClose={() => setIncidentGame(null)} />
     </AdminLayout>

@@ -1,7 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, UserCheck, AlertCircle } from "lucide-react";
-import { profilesApi, certificationLevelsApi, leagueQualificationsApi } from "@/lib/resources";
+import {
+  assignmentsApi,
+  profilesApi,
+  certificationLevelsApi,
+  leagueQualificationsApi,
+} from "@/lib/resources";
 import { api, ApiError } from "@/lib/api";
 import { useTranslation } from "@/i18n/I18nProvider";
 import type { AssignBoardOfficial, AvailabilityStatus, Profile, Assignment } from "@shared/types";
@@ -179,10 +184,16 @@ export function AssignPanel({
     return rows;
   }, [profiles, rule, levelsById, useBoardAvail, boardById, gameHour]);
 
-  const assignableRows = useMemo(
-    () => profileRows.filter((r) => r.canAssign),
-    [profileRows]
-  );
+  const currentAssigneeId = target?.assignment?.official_id ?? null;
+
+  const assignableRows = useMemo(() => {
+    const base = profileRows.filter((r) => r.canAssign);
+    if (!currentAssigneeId) return base;
+    if (base.some((r) => r.profile.id === currentAssigneeId)) return base;
+    const currentRow = profileRows.find((r) => r.profile.id === currentAssigneeId);
+    if (!currentRow) return base;
+    return [{ ...currentRow, canAssign: true }, ...base];
+  }, [profileRows, currentAssigneeId]);
   const blockedRows = useMemo(
     () => profileRows.filter((r) => r.qualified && !r.canAssign),
     [profileRows]
@@ -193,32 +204,65 @@ export function AssignPanel({
   );
 
   const selectedRow = profileRows.find((r) => r.profile.id === selectedId);
-  const selectedCanAssign = selectedRow?.canAssign ?? false;
+  const selectedIsCurrentAssignee = !!selectedId && selectedId === currentAssigneeId;
+  const selectedCanAssign =
+    !!selectedId && (selectedIsCurrentAssignee || (selectedRow?.canAssign ?? false));
 
   useEffect(() => {
-    if (!selectedId) return;
-    if (!selectedCanAssign) setSelectedId("");
-  }, [selectedId, selectedCanAssign]);
+    if (!selectedId || selectedIsCurrentAssignee) return;
+    if (!selectedRow?.canAssign) setSelectedId("");
+  }, [selectedId, selectedRow, selectedIsCurrentAssignee]);
+
+  const useDraft = !!boardOfficials;
+
+  const saveStatus = (): Assignment["status"] => {
+    if (!useDraft) return "PENDING";
+    if (!target?.assignment) return "DRAFT";
+    if (target.assignment.status === "DRAFT") return "DRAFT";
+    return "PENDING";
+  };
+
+  const { mutate: remove, isPending: isRemoving } = useMutation({
+    mutationFn: async () => {
+      if (!target?.assignment) throw new Error("No assignment to remove");
+      return assignmentsApi.delete(target.assignment.id);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["schedule-games"] });
+      qc.invalidateQueries({ queryKey: ["assign-board"] });
+      qc.invalidateQueries({ queryKey: ["availability"] });
+      onAssigned?.();
+      toast.success("Assignment removed.");
+      onClose();
+    },
+    onError: (e: Error) => {
+      if (e instanceof ApiError) toast.error(e.message);
+      else toast.error(e.message || "Failed to remove assignment.");
+    },
+  });
 
   const { mutate: save, isPending } = useMutation({
     mutationFn: async () => {
       if (!target || !selectedId) throw new Error("No official selected");
       if (!selectedCanAssign) throw new Error(t("assign.cannotAssign"));
+      const status = saveStatus();
       if (target.assignment) {
         return api.put<Assignment>(`/api/assignments/${target.assignment.id}`, {
           official_id: selectedId,
-          status: "PENDING",
+          status,
         });
       }
       return api.post<Assignment>("/api/assignments", {
         game_id: target.game.id,
         official_id: selectedId,
         position: target.position,
-        status: "PENDING",
+        status,
       });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["schedule-games"] });
+      qc.invalidateQueries({ queryKey: ["assign-board"] });
+      qc.invalidateQueries({ queryKey: ["availability"] });
       onAssigned?.();
       toast.success(target?.assignment ? "Assignment updated." : "Official assigned.");
       onClose();
@@ -286,7 +330,7 @@ export function AssignPanel({
           </SheetTitle>
           <SheetDescription>
             {isReassign
-              ? `Currently: ${target?.assignment?.official?.full_name ?? "Unknown"}`
+              ? `Currently: ${target?.assignment?.official?.full_name ?? "Unknown"}. Pick another official or remove the assignment.`
               : useBoardAvail
                 ? "Officials sorted by availability for this game time."
                 : "Choose an official to fill this position."}
@@ -372,27 +416,49 @@ export function AssignPanel({
           )}
         </div>
 
-        <div className="px-6 py-4 border-t border-border flex items-center justify-end gap-2">
-          <Button variant="outline" size="sm" onClick={onClose} disabled={isPending}>
-            {t("assign.cancel")}
-          </Button>
-          <Button
-            size="sm"
-            disabled={!selectedId || !selectedCanAssign || isPending}
-            onClick={() => save()}
-            className="gap-1.5"
-          >
-            {isPending ? (
-              <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                {t("assign.saving")}
-              </>
-            ) : isReassign ? (
-              t("assign.reassign")
-            ) : (
-              t("assign.saveAssignment")
-            )}
-          </Button>
+        <div className="px-6 py-4 border-t border-border flex items-center justify-between gap-2">
+          {isReassign ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-destructive hover:text-destructive"
+              disabled={isPending || isRemoving}
+              onClick={() => remove()}
+            >
+              {isRemoving ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                  Removing…
+                </>
+              ) : (
+                "Remove"
+              )}
+            </Button>
+          ) : (
+            <span />
+          )}
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={onClose} disabled={isPending || isRemoving}>
+              {t("assign.cancel")}
+            </Button>
+            <Button
+              size="sm"
+              disabled={!selectedId || !selectedCanAssign || isPending || isRemoving}
+              onClick={() => save()}
+              className="gap-1.5"
+            >
+              {isPending ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  {t("assign.saving")}
+                </>
+              ) : isReassign ? (
+                t("assign.reassign")
+              ) : (
+                t("assign.saveAssignment")
+              )}
+            </Button>
+          </div>
         </div>
       </SheetContent>
     </Sheet>

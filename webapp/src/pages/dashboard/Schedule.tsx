@@ -5,6 +5,7 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { formatGameDateShort, formatGameTime, todayYmd } from "@/lib/atlanticTime";
 
 type GameSnap = {
   id: string;
@@ -39,9 +40,8 @@ function GameCard({ assignment, onAccept, onDecline, isPending }: {
   const game = assignment.game;
   if (!game) return null;
 
-  const gameDate = new Date(game.date_time);
-  const dateStr = gameDate.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
-  const timeStr = gameDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const dateStr = formatGameDateShort(game.date_time);
+  const { timeStr } = formatGameTime(game.date_time);
   const posColor = POSITION_COLORS[assignment.position] ?? "bg-muted text-muted-foreground border-border";
 
   return (
@@ -113,7 +113,7 @@ export default function OfficialSchedule() {
   const qc = useQueryClient();
   const [showPast, setShowPast] = useState(false);
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = todayYmd();
 
   const { data: assignments = [], isLoading } = useQuery<Assignment[]>({
     queryKey: ["assignments", "mine", "all"],

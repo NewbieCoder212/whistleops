@@ -1,19 +1,26 @@
 import { Hono } from "hono";
 import { serviceDb } from "../db";
-import { dbError, runRoute } from "../lib/handleDb";
+import { isResendConfigured } from "../env";
+import { resolveAssignBoardGameIds } from "../lib/assignBoardScope";
 import {
+  loadPublishedAssignmentRows,
+  notifyOfficialsOfPublishedAssignments,
+} from "../lib/assignmentPublishNotify";
+import {
+  dateKeyFromIso,
   dayQueryBounds,
+  gameHourFromIso,
   resolveAvailabilityStatus,
-  storedGameDateKey,
-  storedGameHour,
 } from "../lib/availabilityMatch";
+import { dbError, runRoute } from "../lib/handleDb";
+import { parseJson } from "../lib/validate";
 import {
   isOfficialQualified,
   resolveQualificationForGame,
 } from "../lib/qualificationBoard";
 import { requireWorkspaceStaff } from "../middleware/auth";
 import { requireWorkspaceHeader } from "../middleware/workspaceScope";
-import type { AssignBoardSlotHint, Position } from "../types";
+import { AssignBoardPublishSchema, type AssignBoardSlotHint, type Position } from "../types";
 
 const assignBoardRouter = new Hono();
 assignBoardRouter.use("*", requireWorkspaceHeader);
@@ -106,7 +113,7 @@ assignBoardRouter.get("/", requireWorkspaceStaff, async (c) =>
     };
 
     const gamesOnDate = rawGames.filter(
-      (g) => storedGameDateKey(String(g.date_time)) === date
+      (g) => dateKeyFromIso(String(g.date_time)) === date
     );
 
     const games = gamesOnDate.filter((g) => {
@@ -211,7 +218,7 @@ assignBoardRouter.get("/", requireWorkspaceStaff, async (c) =>
                 "id, game_id, official_id, position, status, game:games(id, date_time, workspace_id)"
               )
               .in("official_id", officialIds)
-              .in("status", ["PENDING", "CONFIRMED"])
+              .in("status", ["DRAFT", "PENDING", "CONFIRMED"])
           ).data ?? []
         : [];
 
@@ -221,21 +228,50 @@ assignBoardRouter.get("/", requireWorkspaceStaff, async (c) =>
       Array<{ game_id: string; position: Position; game_hour: number }>
     >();
 
+    const bookedStatuses = new Set(["DRAFT", "PENDING", "CONFIRMED"]);
+
+    const recordOfficialBusy = (
+      oid: string,
+      gameId: string,
+      position: Position,
+      gameHour: number
+    ) => {
+      if (!busyByOfficial.has(oid)) busyByOfficial.set(oid, new Set());
+      busyByOfficial.get(oid)!.add(gameHour);
+      const list = assignmentsTodayByOfficial.get(oid) ?? [];
+      if (!list.some((x) => x.game_id === gameId && x.position === position)) {
+        list.push({ game_id: gameId, position, game_hour: gameHour });
+        assignmentsTodayByOfficial.set(oid, list);
+      }
+    };
+
     type GameRef = { date_time: string; workspace_id: string };
     for (const a of allAssignmentsToday) {
       const rawGame = unwrapOne(a.game as GameRef | GameRef[] | null);
-      if (!rawGame || storedGameDateKey(rawGame.date_time) !== date) continue;
-      const hour = storedGameHour(rawGame.date_time);
-      const oid = a.official_id as string;
-      if (!busyByOfficial.has(oid)) busyByOfficial.set(oid, new Set());
-      busyByOfficial.get(oid)!.add(hour);
-      const list = assignmentsTodayByOfficial.get(oid) ?? [];
-      list.push({
-        game_id: a.game_id as string,
-        position: a.position as Position,
-        game_hour: hour,
-      });
-      assignmentsTodayByOfficial.set(oid, list);
+      if (!rawGame || dateKeyFromIso(rawGame.date_time) !== date) continue;
+      const hour = gameHourFromIso(rawGame.date_time);
+      recordOfficialBusy(
+        a.official_id as string,
+        a.game_id as string,
+        a.position as Position,
+        hour
+      );
+    }
+
+    // Also derive busy hours from games on the board (same source as slot badges).
+    for (const g of games) {
+      const gameId = g.id as string;
+      const gameHour = gameHourFromIso(String(g.date_time));
+      for (const a of (g.assignments ?? []) as Array<Record<string, unknown>>) {
+        const st = a.status as string;
+        if (!bookedStatuses.has(st)) continue;
+        recordOfficialBusy(
+          a.official_id as string,
+          gameId,
+          a.position as Position,
+          gameHour
+        );
+      }
     }
 
     const boardOfficials = officials.map((p) => {
@@ -265,13 +301,14 @@ assignBoardRouter.get("/", requireWorkspaceStaff, async (c) =>
       ),
     }));
 
+    let draftAssignmentsCount = 0;
     let pendingAssignmentsCount = 0;
     let confirmedAssignmentsCount = 0;
     let declinedAssignmentsCount = 0;
     let gamesAwaitingConfirmationCount = 0;
 
     const boardGames = games.map((g) => {
-      const gameHour = storedGameHour(String(g.date_time));
+      const gameHour = gameHourFromIso(String(g.date_time));
       const rule = resolveQualificationForGame(
         {
           league_tier: g.league_tier as string | null,
@@ -284,7 +321,9 @@ assignBoardRouter.get("/", requireWorkspaceStaff, async (c) =>
       let gameHasPending = false;
       for (const a of rawAssignments) {
         const st = a.status as string;
-        if (st === "PENDING") {
+        if (st === "DRAFT") {
+          draftAssignmentsCount++;
+        } else if (st === "PENDING") {
           pendingAssignmentsCount++;
           gameHasPending = true;
         } else if (st === "CONFIRMED") {
@@ -371,6 +410,7 @@ assignBoardRouter.get("/", requireWorkspaceStaff, async (c) =>
       officials_count: boardOfficials.length,
       officials_with_submission_count: officialsWithSubmission,
       next_unassigned_game_at: nextUnassignedGameAt,
+      draft_assignments_count: draftAssignmentsCount,
       pending_assignments_count: pendingAssignmentsCount,
       confirmed_assignments_count: confirmedAssignmentsCount,
       declined_assignments_count: declinedAssignmentsCount,
@@ -385,6 +425,100 @@ assignBoardRouter.get("/", requireWorkspaceStaff, async (c) =>
       officials: boardOfficials,
       summary,
       hints,
+    };
+  })
+);
+
+// ── POST /api/assign-board/publish ────────────────────────────────────────────
+// Publishes all DRAFT assignments for games on date + zone → PENDING, emails officials.
+assignBoardRouter.post("/publish", requireWorkspaceStaff, async (c) =>
+  runRoute(c, async () => {
+    const body = await parseJson(c, AssignBoardPublishSchema);
+    if (body instanceof Response) return body;
+
+    const workspaceId = c.get("workspaceId");
+
+    let gameIds: string[];
+    let zoneName: string;
+    try {
+      const scope = await resolveAssignBoardGameIds({
+        workspaceId,
+        date: body.date,
+        zoneId: body.zoneId,
+        leagueType: body.leagueType,
+      });
+      gameIds = scope.gameIds;
+      zoneName = scope.zoneName;
+    } catch (e) {
+      const err = e as Error & { code?: string };
+      if (err.code === "NOT_FOUND") {
+        return c.json({ error: { message: "Zone not found", code: "NOT_FOUND" } }, 404);
+      }
+      throw e;
+    }
+
+    if (gameIds.length === 0) {
+      return {
+        published_count: 0,
+        officials_notified: 0,
+        emails_sent: 0,
+        emails_failed: [],
+      };
+    }
+
+    const db = serviceDb();
+
+    const { data: draftRows, error: draftErr } = await db
+      .from("assignments")
+      .select("id, official_id")
+      .in("game_id", gameIds)
+      .eq("status", "DRAFT");
+    if (draftErr) return dbError(c, draftErr);
+
+    const draftIds = (draftRows ?? []).map((r) => r.id as string);
+    if (draftIds.length === 0) {
+      return {
+        published_count: 0,
+        officials_notified: 0,
+        emails_sent: 0,
+        emails_failed: [],
+      };
+    }
+
+    const { error: updateErr } = await db
+      .from("assignments")
+      .update({ status: "PENDING" })
+      .in("id", draftIds)
+      .eq("status", "DRAFT");
+    if (updateErr) return dbError(c, updateErr);
+
+    const officialsNotified = new Set(
+      (draftRows ?? []).map((r) => r.official_id as string)
+    ).size;
+
+    let emailsSent = 0;
+    let emailsFailed: Array<{ email: string; error: string }> = [];
+    let emailSkipped = false;
+
+    if (isResendConfigured()) {
+      const publishedRows = await loadPublishedAssignmentRows(draftIds);
+      const { sent, failed } = await notifyOfficialsOfPublishedAssignments(
+        publishedRows,
+        body.date,
+        zoneName
+      );
+      emailsSent = sent.length;
+      emailsFailed = failed;
+    } else {
+      emailSkipped = true;
+    }
+
+    return {
+      published_count: draftIds.length,
+      officials_notified: officialsNotified,
+      emails_sent: emailsSent,
+      emails_failed: emailsFailed,
+      ...(emailSkipped ? { email_skipped: true } : {}),
     };
   })
 );

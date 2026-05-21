@@ -21,6 +21,7 @@ import type {
   AssignmentCreate,
   AssignmentUpdate,
   AssignBoard,
+  AssignBoardPublishResult,
   CertificationLevel,
   CertificationLevelCreate,
   CertificationLevelUpdate,
@@ -143,6 +144,8 @@ export const assignBoardApi = {
     if (params.leagueType) qs.set("leagueType", params.leagueType);
     return api.get<AssignBoard>(`/api/assign-board?${qs.toString()}`);
   },
+  publish: (body: { date: string; zoneId: string; leagueType?: string }) =>
+    api.post<AssignBoardPublishResult>("/api/assign-board/publish", body),
 };
 
 export const settingsApi = {

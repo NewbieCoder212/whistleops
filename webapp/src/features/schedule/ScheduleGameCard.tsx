@@ -1,4 +1,5 @@
-import { AlertTriangle, Mail, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { AlertTriangle, LayoutGrid, Mail, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,7 +11,7 @@ import {
 import type { Position } from "@shared/types";
 import type { ScheduleGame, ScheduleAssignment } from "./scheduleTypes";
 import { usePositionSlots } from "@/hooks/usePositionSlots";
-import { GAME_STATUS_STYLES, formatGameTime } from "./scheduleTypes";
+import { GAME_STATUS_STYLES, formatGameTime, toDateKey } from "./scheduleTypes";
 import {
   AssignmentStatusBadge,
   filledSlotSurfaceClass,
@@ -19,7 +20,8 @@ import {
 interface ScheduleGameCardProps {
   game: ScheduleGame;
   zonesById?: Map<string, string>;
-  onSlotClick: (position: Position, assignment: ScheduleAssignment | null) => void;
+  /** Slots link here; assigning happens on Assignment Board (read-only on Schedule). */
+  assignBoardHref?: string;
   onMessageClick?: () => void;
   onIncidentClick?: () => void;
   onEditClick?: () => void;
@@ -33,21 +35,23 @@ function messageableAssignmentCount(game: ScheduleGame): number {
   ).length;
 }
 
-interface SlotButtonProps {
+interface SlotDisplayProps {
   position: { key: Position; label: string; abbr: string; group: "ref" | "line" };
   assignment: ScheduleAssignment | undefined;
-  onClick: () => void;
+  boardHref: string;
 }
 
-function SlotButton({ position, assignment, onClick }: SlotButtonProps) {
+function SlotDisplay({ position, assignment, boardHref }: SlotDisplayProps) {
   const filled = !!assignment;
   const isRef = position.group === "ref";
 
   return (
-    <button
-      onClick={onClick}
+    <Link
+      to={boardHref}
+      title="Open on Assignment Board to assign or change this slot"
       className={cn(
         "flex flex-col items-start rounded-md px-2 py-1.5 text-left transition-all w-[112px] focus:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+        "hover:ring-1 hover:ring-primary/30",
         filled
           ? filledSlotSurfaceClass(assignment!.status)
           : "border border-dashed border-border hover:border-primary/40 hover:bg-secondary/50"
@@ -78,14 +82,14 @@ function SlotButton({ position, assignment, onClick }: SlotButtonProps) {
           ? (assignment!.official?.full_name ?? "Unknown")
           : "unassigned"}
       </span>
-    </button>
+    </Link>
   );
 }
 
 export function ScheduleGameCard({
   game,
   zonesById,
-  onSlotClick,
+  assignBoardHref,
   onMessageClick,
   onIncidentClick,
   onEditClick,
@@ -96,6 +100,7 @@ export function ScheduleGameCard({
   const assignmentMap = new Map(game.assignments.map((a) => [a.position, a]));
   const statusStyle = GAME_STATUS_STYLES[game.status] ?? "text-muted-foreground";
   const messageableCount = messageableAssignmentCount(game);
+  const draftCount = game.assignments.filter((a) => a.status === "DRAFT").length;
   const pendingCount = game.assignments.filter((a) => a.status === "PENDING").length;
   const declinedCount = game.assignments.filter((a) => a.status === "REJECTED").length;
   const venueZoneId = game.venue?.zone_id ?? null;
@@ -160,6 +165,11 @@ export function ScheduleGameCard({
             <span className={cn("text-[10px] font-semibold uppercase tracking-wide", statusStyle)}>
               {game.status}
             </span>
+            {draftCount > 0 ? (
+              <span className="inline-flex items-center rounded border border-violet-500/40 bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:text-violet-300">
+                {draftCount} draft
+              </span>
+            ) : null}
             {pendingCount > 0 ? (
               <span className="inline-flex items-center rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
                 {pendingCount} awaiting confirmation
@@ -235,15 +245,27 @@ export function ScheduleGameCard({
           </div>
         </div>
 
-        {/* Assignment slots */}
-        <div className="flex-shrink-0 flex items-center p-3 border-l border-border">
+        {/* Assignment slots (read-only — assign on board) */}
+        <div className="flex-shrink-0 flex flex-col justify-center gap-1.5 p-3 border-l border-border">
+          {assignBoardHref ? (
+            <Link
+              to={assignBoardHref}
+              className="flex items-center gap-1 text-[10px] font-medium text-primary hover:underline self-end"
+              title="Open this day on Assignment Board"
+            >
+              <LayoutGrid className="h-3 w-3" />
+              Assign on board
+            </Link>
+          ) : null}
           <div className="grid grid-cols-2 gap-1.5">
             {slotPositions.map((pos) => (
-              <SlotButton
+              <SlotDisplay
                 key={pos.key}
                 position={pos}
                 assignment={assignmentMap.get(pos.key)}
-                onClick={() => onSlotClick(pos.key, assignmentMap.get(pos.key) ?? null)}
+                boardHref={
+                  assignBoardHref ?? `/admin/assignment-board?date=${toDateKey(game.date_time)}`
+                }
               />
             ))}
           </div>

@@ -31,7 +31,7 @@ const BADGE_CLASS: Record<AvailabilityStatus, string> = {
   available: "text-emerald-600 dark:text-emerald-400",
   no_submission: "text-amber-600 dark:text-amber-400",
   unavailable: "text-muted-foreground",
-  busy: "text-amber-700 dark:text-amber-500",
+  busy: "text-red-700 dark:text-red-400",
 };
 
 interface AssignmentBoardHourFocusProps {

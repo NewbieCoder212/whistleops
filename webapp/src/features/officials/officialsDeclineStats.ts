@@ -1,4 +1,5 @@
 import { addDaysIso, todayIso } from "@/features/filters/scheduleFilterUtils";
+import { currentNBSeasonStartYear } from "@/lib/atlanticTime";
 import type { DeclineStatsParams } from "@/lib/resources";
 
 export type DeclinePeriodMode = "season" | "custom";
@@ -11,10 +12,7 @@ export type DeclinePeriodState = {
 };
 
 /** NB season start year (Sept–Aug): e.g. May 2026 → 2025 for 2025–26. */
-export function currentNBSeasonStartYear(): number {
-  const d = new Date();
-  return d.getMonth() >= 8 ? d.getFullYear() : d.getFullYear() - 1;
-}
+export { currentNBSeasonStartYear };
 
 export function defaultDeclinePeriod(): DeclinePeriodState {
   const y = currentNBSeasonStartYear();

@@ -97,8 +97,8 @@ function MiniSlot({
       }}
       title={
         filled
-          ? `${abbr}: ${slot.assignment?.official?.full_name ?? "Assigned"}${statusLabel ? ` · ${statusLabel}` : ""}`
-          : `${abbr}: unassigned · ${slot.available_qualified_count} qualified available`
+          ? `${abbr}: ${slot.assignment?.official?.full_name ?? "Assigned"}${statusLabel ? ` · ${statusLabel}` : ""} — click to change`
+          : `${abbr}: unassigned · ${slot.available_qualified_count} qualified available — click to assign`
       }
       className={cn(
         "min-w-[58px] max-w-[84px] rounded border px-1 py-0.5 text-[10px] font-medium transition-colors hover:opacity-90 flex flex-col items-center gap-0.5",

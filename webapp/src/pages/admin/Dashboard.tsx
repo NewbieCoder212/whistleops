@@ -4,6 +4,13 @@ import { Link } from "react-router-dom";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { api } from "@/lib/api";
 import { useProfile } from "@/hooks/useProfile";
+import { canAccessPayroll } from "@/lib/payrollAccess";
+import {
+  addDaysYmd,
+  formatGameTime,
+  toDateKeyFromIso,
+  todayYmd,
+} from "@/lib/atlanticTime";
 import type { Profile } from "@shared/types";
 
 type GameRow = {
@@ -45,8 +52,8 @@ function StatCard({
 export default function AdminDashboard() {
   const { data: profile } = useProfile();
 
-  const today = new Date().toISOString().slice(0, 10);
-  const nextMonth = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const today = todayYmd();
+  const nextMonth = addDaysYmd(today, 30);
 
   const { data: upcomingGames = [] } = useQuery<GameRow[]>({
     queryKey: ["games", "upcoming-dashboard"],
@@ -65,9 +72,25 @@ export default function AdminDashboard() {
   );
   const officialsCount = profiles.filter((p) => p.role === "OFFICIAL").length;
 
-  const todayGames = upcomingGames.filter((g) => g.date_time.slice(0, 10) === today);
+  const todayGames = upcomingGames.filter(
+    (g) => toDateKeyFromIso(g.date_time) === today
+  );
 
   const greeting = profile?.full_name ? `Welcome back, ${profile.full_name.split(" ")[0]}.` : "Welcome back.";
+
+  const quickLinks = [
+    { label: "Game Schedule", desc: "Assign officials to upcoming games", href: "/admin/schedule" },
+    ...(canAccessPayroll(profile?.role)
+      ? [
+          {
+            label: "Finance & Payroll",
+            desc: "Review and approve payouts",
+            href: "/admin/finance",
+          },
+        ]
+      : []),
+    { label: "Import Games", desc: "Bulk upload from CSV", href: "/admin/import-games" },
+  ];
 
   return (
     <AdminLayout>
@@ -130,7 +153,7 @@ export default function AdminDashboard() {
               {todayGames.slice(0, 6).map((game) => (
                 <div key={game.id} className="flex items-center gap-4 px-5 py-3.5 bg-card hover:bg-secondary/40 transition-colors">
                   <div className="text-xs text-muted-foreground w-14 flex-shrink-0 tabular-nums">
-                    {new Date(game.date_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    {formatGameTime(game.date_time).timeStr}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">
@@ -156,11 +179,7 @@ export default function AdminDashboard() {
 
         {/* Quick links */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {[
-            { label: "Game Schedule", desc: "Assign officials to upcoming games", href: "/admin/schedule" },
-            { label: "Finance & Payroll", desc: "Review and approve payouts", href: "/admin/finance" },
-            { label: "Import Games", desc: "Bulk upload from CSV", href: "/admin/import-games" },
-          ].map((item) => (
+          {quickLinks.map((item) => (
             <Link
               key={item.href}
               to={item.href}

@@ -7,6 +7,7 @@ import type {
   LeagueQualificationWithLevel,
   Profile,
 } from "@shared/types";
+import { addDaysYmd, todayYmd } from "@/lib/atlanticTime";
 import {
   buildLevelsById,
   checkOfficialQualified,
@@ -24,16 +25,12 @@ export function resolveOfficialAvailabilityStatus(
 }
 
 export function addDaysIso(date: string, delta: number): string {
-  const [y, m, d] = date.split("-").map(Number);
-  const dt = new Date(y!, m! - 1, d!);
-  dt.setDate(dt.getDate() + delta);
-  return dt.toISOString().slice(0, 10);
+  return addDaysYmd(date, delta);
 }
 
-/** Local calendar date — matches Schedule default, not UTC slice. */
+/** Calendar today in Atlantic (YYYY-MM-DD). */
 export function todayIso(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return todayYmd();
 }
 
 export const AVAILABILITY_STATUS_SORT: Record<AvailabilityStatus, number> = {
@@ -47,7 +44,7 @@ export const AVAILABILITY_LABELS: Record<AvailabilityStatus, string> = {
   available: "Available",
   no_submission: "No submission",
   unavailable: "Unavailable",
-  busy: "Busy",
+  busy: "Assigned",
 };
 
 export function computeBoardSummary(
@@ -108,7 +105,7 @@ export function gameHasDeclinedAssignment(game: GameWithAssignments): boolean {
 
 function countAssignmentsByStatus(
   games: AssignBoardGame[],
-  status: "PENDING" | "CONFIRMED" | "REJECTED"
+  status: "DRAFT" | "PENDING" | "CONFIRMED" | "REJECTED"
 ): number {
   let n = 0;
   for (const g of games) {
@@ -124,6 +121,7 @@ export function mergeAssignmentResponseSummary(
   apiSummary?: AssignBoardSummary
 ): Pick<
   AssignBoardSummary,
+  | "draft_assignments_count"
   | "pending_assignments_count"
   | "confirmed_assignments_count"
   | "declined_assignments_count"
@@ -135,6 +133,7 @@ export function mergeAssignmentResponseSummary(
     apiSummary.confirmed_assignments_count != null
   ) {
     return {
+      draft_assignments_count: apiSummary.draft_assignments_count ?? 0,
       pending_assignments_count: apiSummary.pending_assignments_count,
       confirmed_assignments_count: apiSummary.confirmed_assignments_count,
       declined_assignments_count: apiSummary.declined_assignments_count ?? 0,
@@ -143,6 +142,7 @@ export function mergeAssignmentResponseSummary(
     };
   }
   return {
+    draft_assignments_count: countAssignmentsByStatus(games, "DRAFT"),
     pending_assignments_count: countAssignmentsByStatus(games, "PENDING"),
     confirmed_assignments_count: countAssignmentsByStatus(games, "CONFIRMED"),
     declined_assignments_count: countAssignmentsByStatus(games, "REJECTED"),

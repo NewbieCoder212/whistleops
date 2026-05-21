@@ -10,6 +10,7 @@ export function AssignmentBoardSummaryBar({ summary }: AssignmentBoardSummaryBar
     ? formatGameTime(summary.next_unassigned_game_at).timeStr
     : null;
 
+  const draft = summary.draft_assignments_count ?? 0;
   const pending = summary.pending_assignments_count ?? 0;
   const confirmed = summary.confirmed_assignments_count ?? 0;
   const declined = summary.declined_assignments_count ?? 0;
@@ -34,11 +35,19 @@ export function AssignmentBoardSummaryBar({ summary }: AssignmentBoardSummaryBar
           </div>
         ) : null}
       </div>
-      {(pending > 0 || confirmed > 0 || declined > 0) && (
+      {(draft > 0 || pending > 0 || confirmed > 0 || declined > 0) && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-muted/30 px-4 py-2 text-xs">
           <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Crew responses
+            Assignments
           </span>
+          {draft > 0 ? (
+            <>
+              <span className="text-violet-700 dark:text-violet-300 font-medium tabular-nums">
+                {draft} draft
+              </span>
+              <span className="text-muted-foreground">·</span>
+            </>
+          ) : null}
           <span className="text-amber-700 dark:text-amber-300 font-medium tabular-nums">
             {pending} pending
           </span>

@@ -23,8 +23,8 @@ export const en = {
   },
   navDesc: {
     dashboard: "Overview & stats",
-    schedule: "Games & assignments",
-    assignmentBoard: "Day view: games + availability",
+    schedule: "Week view: games & crew comms",
+    assignmentBoard: "Day assign with availability",
     availability: "Official availability overview",
     officials: "Profiles & roster",
     finance: "Payroll & approvals",

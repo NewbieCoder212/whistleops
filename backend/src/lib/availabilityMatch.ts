@@ -4,7 +4,9 @@ export const AFTERNOON_HOURS = [12, 13, 14, 15, 16];
 export const EVENING_HOURS = [17, 18, 19, 20, 21, 22, 23, 0];
 export const BOARD_HOURS = [...MORNING_HOURS, ...AFTERNOON_HOURS, ...EVENING_HOURS];
 
-const DEFAULT_TZ = "America/Moncton";
+/** All schedule/game calendar logic uses Atlantic (Moncton) time. */
+export const WORKSPACE_TIMEZONE = "America/Moncton";
+const DEFAULT_TZ = WORKSPACE_TIMEZONE;
 
 export type AvailabilityStatus = "available" | "unavailable" | "busy" | "no_submission";
 

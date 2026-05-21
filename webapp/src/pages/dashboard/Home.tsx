@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { api } from "@/lib/api";
 import { useProfile } from "@/hooks/useProfile";
+import { formatGameDateShort, formatGameTime, todayYmd } from "@/lib/atlanticTime";
 
 type AssignmentRow = {
   id: string;
@@ -34,8 +35,7 @@ function positionBadge(pos: string) {
 export default function OfficialHome() {
   const { data: profile } = useProfile();
 
-  const today = new Date();
-  const todayStr = today.toISOString().slice(0, 10);
+  const todayStr = todayYmd();
   const monthKey = todayStr.slice(0, 7);
 
   const { data: assignments = [] } = useQuery<AssignmentRow[]>({
@@ -97,7 +97,8 @@ export default function OfficialHome() {
             <div className="divide-y divide-border rounded-xl border border-border overflow-hidden">
               {upcoming.map((a) => {
                 const game = a.game!;
-                const gameDate = new Date(game.date_time);
+                const { timeStr } = formatGameTime(game.date_time);
+                const dateLabel = formatGameDateShort(game.date_time);
                 return (
                   <div key={a.id} className="bg-card px-4 py-3.5 space-y-1.5">
                     <div className="flex items-center justify-between gap-2">
@@ -111,8 +112,7 @@ export default function OfficialHome() {
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <Clock className="h-3 w-3" />
-                        {gameDate.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}{" "}
-                        {gameDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        {dateLabel} {timeStr}
                       </span>
                       {game.venue ? (
                         <span className="flex items-center gap-1 truncate">

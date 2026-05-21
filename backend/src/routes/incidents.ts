@@ -82,6 +82,7 @@ incidentsRouter.post("/", requireAuth, requireWorkspaceHeader, async (c) =>
 
       if (recipients.size > 0) {
         const dt = new Date(game.date_time).toLocaleString("en-CA", {
+          timeZone: "America/Moncton",
           dateStyle: "medium",
           timeStyle: "short",
         });

@@ -1,26 +1,25 @@
+import {
+  addDaysYmd,
+  buildGameDateTimeIso,
+  endOfWeekYmd,
+  startOfWeekYmd,
+  todayYmd,
+} from "@/lib/atlanticTime";
+
 export function todayIso(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return todayYmd();
 }
 
 export function addDaysIso(iso: string, days: number): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  const date = new Date(y!, m! - 1, d!);
-  date.setDate(date.getDate() + days);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  return addDaysYmd(iso, days);
 }
 
 export function startOfWeekIso(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  const date = new Date(y!, m! - 1, d!);
-  const day = date.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  date.setDate(date.getDate() + diff);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  return startOfWeekYmd(iso);
 }
 
 export function endOfWeekIso(iso: string): string {
-  return addDaysIso(startOfWeekIso(iso), 6);
+  return endOfWeekYmd(iso);
 }
 
 export type ScheduleFilterState = {
@@ -38,7 +37,7 @@ export function defaultScheduleFilters(): ScheduleFilterState {
     zoneId: null,
     leagueType: null,
     dateFrom: from,
-    dateTo: addDaysIso(from, 7),
+    dateTo: addDaysIso(from, 6),
     unassignedOnly: false,
     declinedOnly: false,
   };
@@ -46,8 +45,12 @@ export function defaultScheduleFilters(): ScheduleFilterState {
 
 export function buildGamesQueryParams(filters: ScheduleFilterState): string {
   const params = new URLSearchParams();
-  params.set("startDate", `${filters.dateFrom}T00:00:00.000Z`);
-  params.set("endDate", `${filters.dateTo}T23:59:59.999Z`);
+  const start =
+    buildGameDateTimeIso(filters.dateFrom, "00:00") ?? `${filters.dateFrom}T00:00:00.000Z`;
+  const end =
+    buildGameDateTimeIso(filters.dateTo, "23:59") ?? `${filters.dateTo}T23:59:59.999Z`;
+  params.set("startDate", start);
+  params.set("endDate", end);
   if (filters.zoneId) params.set("zoneId", filters.zoneId);
   if (filters.unassignedOnly) params.set("unassignedOnly", "true");
   return params.toString();
@@ -65,4 +68,41 @@ export function saveZonePreference(userId: string | undefined, zoneId: string | 
   const key = `${ZONE_PREF_PREFIX}${userId}`;
   if (zoneId) localStorage.setItem(key, zoneId);
   else localStorage.removeItem(key);
+}
+
+export function zoneSelectLabel(
+  name: string,
+  zoneId: string,
+  homeZoneId?: string | null
+): string {
+  if (homeZoneId && zoneId === homeZoneId) return `${name} (home)`;
+  return name;
+}
+
+/**
+ * Initial zone for schedule/board/finance filters.
+ * Non-admins with a profile home zone start there; admins prefer last saved selection.
+ */
+export function resolveDefaultZoneId(options: {
+  userId?: string;
+  profileZoneId?: string | null;
+  role?: string;
+  zoneIds: string[];
+}): string | null {
+  const { userId, profileZoneId, role, zoneIds } = options;
+  if (zoneIds.length === 0) return null;
+
+  const pick = (id: string | null | undefined) =>
+    id && zoneIds.includes(id) ? id : null;
+
+  const home = pick(profileZoneId);
+  const saved = pick(loadSavedZoneId(userId));
+  const first = zoneIds[0] ?? null;
+
+  if (role === "ADMIN") {
+    return saved ?? home ?? first;
+  }
+
+  if (home) return home;
+  return saved ?? first;
 }

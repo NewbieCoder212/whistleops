@@ -11,6 +11,7 @@
 import type { Context, MiddlewareHandler } from "hono";
 import { getUserFromAccessToken, serviceDb, SupabaseNotConfiguredError } from "../db";
 import {
+  canAccessPayroll,
   getWorkspaceMembership,
   isStaffRole,
   resolveProfileId,
@@ -205,6 +206,23 @@ export const requireWorkspaceStaff: MiddlewareHandler = async (c, next) => {
   }
   return c.json(
     { error: { message: "Workspace staff role required", code: "FORBIDDEN" } },
+    403
+  );
+};
+
+/** Finance & Payroll — admin, assignor, and finance only (not supervisor). */
+export const requirePayrollAccess: MiddlewareHandler = async (c, next) => {
+  const err = await loadWorkspaceContext(c);
+  if (err) return err;
+
+  const profileRole = c.get("profileRole");
+  const workspaceRole = c.get("workspaceRole");
+  if (canAccessPayroll(profileRole, workspaceRole)) {
+    await next();
+    return;
+  }
+  return c.json(
+    { error: { message: "Payroll access required", code: "FORBIDDEN" } },
     403
   );
 };

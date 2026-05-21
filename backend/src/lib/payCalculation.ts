@@ -7,6 +7,7 @@ import type {
   RateSource,
 } from "../types";
 import { AssigningFeeSchema, DivisionPayRatesRowSchema, LeagueTypeEnum } from "../types";
+import { WORKSPACE_TIMEZONE } from "./availabilityMatch";
 
 export const DEFAULT_POSITION_RATES = {
   REF1: 75,
@@ -297,10 +298,18 @@ export function resolveAssignmentPay(
   };
 }
 
-/** NB hockey season: Sept 1 through Aug 31. */
-export function getNBSeasonForDate(date: Date): { start: string; end: string; label: string } {
-  const y = date.getUTCFullYear();
-  const m = date.getUTCMonth();
+/** NB hockey season: Sept 1 through Aug 31 (by Atlantic calendar). */
+export function getNBSeasonForDate(
+  date: Date,
+  timeZone = WORKSPACE_TIMEZONE
+): { start: string; end: string; label: string } {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "numeric",
+  }).formatToParts(date);
+  const y = parseInt(parts.find((p) => p.type === "year")?.value ?? "2000", 10);
+  const m = parseInt(parts.find((p) => p.type === "month")?.value ?? "1", 10) - 1;
   const startYear = m >= 8 ? y : y - 1;
   const endYear = startYear + 1;
   return {
