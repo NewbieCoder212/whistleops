@@ -60,7 +60,8 @@ export const requireAuth: MiddlewareHandler = async (c, next) => {
     if (e instanceof SupabaseNotConfiguredError) {
       return c.json({ error: { message: e.message, code: "SUPABASE_NOT_CONFIGURED" } }, 503);
     }
-    return c.json({ error: { message: "Invalid token", code: "UNAUTHENTICATED" } }, 401);
+    const message = e instanceof Error ? e.message : "Invalid token";
+    return c.json({ error: { message, code: "UNAUTHENTICATED" } }, 401);
   }
 };
 
