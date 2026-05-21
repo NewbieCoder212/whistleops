@@ -28,9 +28,11 @@ This workspace contains a React webapp and Hono backend server.
 <deploy>
   vercel.json at the workspace root configures a Vercel monorepo:
   - Vite build from webapp/, output to webapp/dist
-  - `bun run build:vercel` bundles backend to api/index.js; rewrites /api/* → /api
+  - `bun run build:vercel` bundles backend to api/index.js (must commit after API changes)
+  - Rewrites /api/* → /api?path=…; vercel-entry.ts restores full path (required for /api/profiles/me etc.)
   - /health → api/health.js; SPA fallback to index.html
-  - Everything else falls through to the SPA's index.html
+  - Supabase on Vercel Node 20 requires `ws` in db.ts (see docs/VERCEL_DEPLOY.md)
+  - Full pitfall list: docs/VERCEL_DEPLOY.md (routing, env vars, WebSocket, do-not-regress)
 </deploy>
 
 <agents>

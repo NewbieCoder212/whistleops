@@ -60,6 +60,7 @@ function supabaseProjectFromJwtKey(key?: string): string | null {
   }
 }
 
+/** Includes supabaseKeysMatch — false means Vercel env keys are from the wrong project. See docs/VERCEL_DEPLOY.md */
 const healthPayload = () => {
   const urlProject = supabaseProjectFromUrl(env.SUPABASE_URL);
   const anonProject = supabaseProjectFromJwtKey(env.SUPABASE_ANON_KEY);

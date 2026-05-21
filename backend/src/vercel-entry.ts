@@ -1,3 +1,13 @@
+/**
+ * Vercel serverless entry (bundled to api/index.js).
+ *
+ * DEPLOY GOTCHAS — see docs/VERCEL_DEPLOY.md
+ *
+ * 1. vercel.json rewrites /api/foo/bar → /api?path=foo/bar (single function).
+ *    Optional catch-all api/[[...path]].js alone returns 404 for nested paths.
+ * 2. restoreApiPath() must rebuild incoming.url before Hono matches routes.
+ * 3. Do not rewrite to "/api" only without restoration — paths collapse to /api.
+ */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { handle } from "@hono/node-server/vercel";
 import { app } from "./app";

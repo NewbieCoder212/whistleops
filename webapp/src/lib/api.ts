@@ -1,8 +1,9 @@
 /**
  * Fetch wrapper for the Hono backend.
  *
- * - In production uses relative URLs (/api/...).
- * - In development reads VITE_BACKEND_URL when the backend is on another port.
+ * - Production: always same-origin /api/... (see docs/VERCEL_DEPLOY.md).
+ *   Never set VITE_BACKEND_URL on Vercel — localhost breaks users' browsers.
+ * - Development: VITE_BACKEND_URL=http://localhost:3000 when webapp is on :8000.
  * - Auto-attaches the Supabase access token as a Bearer header when present.
  * - Unwraps the { data: T } envelope used by all app routes.
  */

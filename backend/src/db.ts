@@ -2,10 +2,13 @@
  * Supabase clients.
  *
  *   serviceDb()  — service-role client. Bypasses RLS. Used by all API routes.
- *   anonClient() — anon client. Used to validate user JWTs via getUser().
+ *   anonClient() — anon client (rare; prefer getUserFromAccessToken for JWT checks).
+ *   getUserFromAccessToken() — JWT validation for auth middleware.
  *
- * Lazy-initialized so the server can still boot before Supabase env vars
- * are configured via the Vibecode ENV tab.
+ * VERCEL / NODE 20 — see docs/VERCEL_DEPLOY.md
+ * Without `ws` as realtime.transport, auth.getUser() throws on Vercel Node 20
+ * ("Node.js 20 detected without native WebSocket support") and login fails with 401.
+ * Keep the `ws` dependency in package.json; it is bundled into api/index.js.
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import ws from "ws";
@@ -53,7 +56,7 @@ export function anonClient(): SupabaseClient {
   return _anon;
 }
 
-/** Validate a user JWT (service-role client works when anon key is misconfigured on Vercel). */
+/** Validate user JWT. Uses service role so login still works if SUPABASE_ANON_KEY is wrong on Vercel. */
 export async function getUserFromAccessToken(token: string) {
   return serviceDb().auth.getUser(token);
 }

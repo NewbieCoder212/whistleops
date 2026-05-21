@@ -4,6 +4,9 @@
  *   requireAuth   — validates Bearer JWT via Supabase, sets userId/userEmail on c.
  *   requireAdmin  — runs requireAuth, then checks profiles.role === 'ADMIN'.
  *   optionalAuth  — populates user context if a valid token is present, otherwise continues.
+ *
+ * JWT checks use getUserFromAccessToken() (service role + ws transport). See db.ts and
+ * docs/VERCEL_DEPLOY.md — do not switch back to anon-only getUser on Vercel Node 20.
  */
 import type { Context, MiddlewareHandler } from "hono";
 import { getUserFromAccessToken, serviceDb, SupabaseNotConfiguredError } from "../db";

@@ -42,6 +42,7 @@ export default function Login() {
       return;
     }
 
+    // Requires /api/profiles/me on server (Vercel path restore — docs/VERCEL_DEPLOY.md)
     try {
       const profile = await api.get<Profile>("/api/profiles/me");
       const dest = ADMIN_ROLES.includes(profile.role)
