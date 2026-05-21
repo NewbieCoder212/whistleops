@@ -48,7 +48,7 @@ function supabaseProjectFromUrl(url?: string): string | null {
   return m?.[1] ?? null;
 }
 
-function supabaseProjectFromAnonKey(key?: string): string | null {
+function supabaseProjectFromJwtKey(key?: string): string | null {
   if (!key?.trim()) return null;
   try {
     const payload = JSON.parse(
@@ -62,19 +62,33 @@ function supabaseProjectFromAnonKey(key?: string): string | null {
 
 const healthPayload = () => {
   const urlProject = supabaseProjectFromUrl(env.SUPABASE_URL);
-  const anonProject = supabaseProjectFromAnonKey(env.SUPABASE_ANON_KEY);
+  const anonProject = supabaseProjectFromJwtKey(env.SUPABASE_ANON_KEY);
+  const serviceProject = supabaseProjectFromJwtKey(env.SUPABASE_SERVICE_ROLE_KEY);
   return {
     status: "ok",
     supabase: isSupabaseConfigured() ? "ready" : "missing-env-vars",
     resend: isResendConfigured() ? "ready" : "missing-env-vars",
     supabaseProject: urlProject,
     anonKeyProject: anonProject,
-    supabaseKeysMatch: !!(urlProject && anonProject && urlProject === anonProject),
+    serviceKeyProject: serviceProject,
+    supabaseKeysMatch: !!(
+      urlProject &&
+      anonProject &&
+      serviceProject &&
+      urlProject === anonProject &&
+      urlProject === serviceProject
+    ),
   };
 };
 
 app.get("/health", (c) => c.json(healthPayload()));
-app.get("/api/health", (c) => c.json(healthPayload()));
+app.get("/api/health", (c) => {
+  const auth = c.req.header("authorization") ?? c.req.header("Authorization");
+  return c.json({
+    ...healthPayload(),
+    authHeaderPresent: !!auth,
+  });
+});
 
 app.route("/api/profiles", profilesRouter);
 app.route("/api/games", gamesRouter);
