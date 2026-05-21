@@ -6,7 +6,7 @@
  *   optionalAuth  — populates user context if a valid token is present, otherwise continues.
  */
 import type { Context, MiddlewareHandler } from "hono";
-import { anonClient, serviceDb, SupabaseNotConfiguredError } from "../db";
+import { getUserFromAccessToken, serviceDb, SupabaseNotConfiguredError } from "../db";
 import {
   getWorkspaceMembership,
   isStaffRole,
@@ -40,7 +40,7 @@ export const requireAuth: MiddlewareHandler = async (c, next) => {
     return c.json({ error: { message: "Missing bearer token", code: "UNAUTHENTICATED" } }, 401);
   }
   try {
-    const { data, error } = await anonClient().auth.getUser(token);
+    const { data, error } = await getUserFromAccessToken(token);
     if (error || !data.user) {
       return c.json({ error: { message: "Invalid token", code: "UNAUTHENTICATED" } }, 401);
     }
@@ -59,7 +59,7 @@ export const optionalAuth: MiddlewareHandler = async (c, next) => {
   const token = bearer(c);
   if (!token) return next();
   try {
-    const { data } = await anonClient().auth.getUser(token);
+    const { data } = await getUserFromAccessToken(token);
     if (data?.user) {
       c.set("userId", data.user.id);
       c.set("userEmail", data.user.email ?? "");
@@ -78,7 +78,7 @@ export const requireAdmin: MiddlewareHandler = async (c, next) => {
   }
 
   try {
-    const { data: authData, error: authError } = await anonClient().auth.getUser(token);
+    const { data: authData, error: authError } = await getUserFromAccessToken(token);
     if (authError || !authData.user) {
       return c.json({ error: { message: "Invalid token", code: "UNAUTHENTICATED" } }, 401);
     }
@@ -132,7 +132,7 @@ async function loadWorkspaceContext(c: Context): Promise<Response | undefined> {
   }
 
   try {
-    const { data: authData, error: authError } = await anonClient().auth.getUser(token);
+    const { data: authData, error: authError } = await getUserFromAccessToken(token);
     if (authError || !authData.user) {
       return c.json({ error: { message: "Invalid token", code: "UNAUTHENTICATED" } }, 401);
     }

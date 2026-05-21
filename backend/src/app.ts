@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import "./env";
-import { isResendConfigured, isSupabaseConfigured } from "./env";
+import { env, isResendConfigured, isSupabaseConfigured } from "./env";
 
 import { profilesRouter } from "./routes/profiles";
 import { gamesRouter } from "./routes/games";
@@ -43,11 +43,35 @@ app.use(
 
 app.use("*", logger());
 
-const healthPayload = () => ({
-  status: "ok",
-  supabase: isSupabaseConfigured() ? "ready" : "missing-env-vars",
-  resend: isResendConfigured() ? "ready" : "missing-env-vars",
-});
+function supabaseProjectFromUrl(url?: string): string | null {
+  const m = url?.trim().match(/https:\/\/([^.]+)\.supabase\.co/);
+  return m?.[1] ?? null;
+}
+
+function supabaseProjectFromAnonKey(key?: string): string | null {
+  if (!key?.trim()) return null;
+  try {
+    const payload = JSON.parse(
+      Buffer.from(key.trim().split(".")[1]!, "base64url").toString("utf8")
+    ) as { ref?: string };
+    return payload.ref ?? null;
+  } catch {
+    return null;
+  }
+}
+
+const healthPayload = () => {
+  const urlProject = supabaseProjectFromUrl(env.SUPABASE_URL);
+  const anonProject = supabaseProjectFromAnonKey(env.SUPABASE_ANON_KEY);
+  return {
+    status: "ok",
+    supabase: isSupabaseConfigured() ? "ready" : "missing-env-vars",
+    resend: isResendConfigured() ? "ready" : "missing-env-vars",
+    supabaseProject: urlProject,
+    anonKeyProject: anonProject,
+    supabaseKeysMatch: !!(urlProject && anonProject && urlProject === anonProject),
+  };
+};
 
 app.get("/health", (c) => c.json(healthPayload()));
 app.get("/api/health", (c) => c.json(healthPayload()));

@@ -26,9 +26,11 @@ export class SupabaseNotConfiguredError extends Error {
 export function serviceDb(): SupabaseClient {
   if (!isSupabaseConfigured()) throw new SupabaseNotConfiguredError();
   if (!_service) {
-    _service = createClient(env.SUPABASE_URL!, env.SUPABASE_SERVICE_ROLE_KEY!, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+    _service = createClient(
+      env.SUPABASE_URL!.trim(),
+      env.SUPABASE_SERVICE_ROLE_KEY!.trim(),
+      { auth: { persistSession: false, autoRefreshToken: false } }
+    );
   }
   return _service;
 }
@@ -36,9 +38,14 @@ export function serviceDb(): SupabaseClient {
 export function anonClient(): SupabaseClient {
   if (!isSupabaseConfigured()) throw new SupabaseNotConfiguredError();
   if (!_anon) {
-    _anon = createClient(env.SUPABASE_URL!, env.SUPABASE_ANON_KEY!, {
+    _anon = createClient(env.SUPABASE_URL!.trim(), env.SUPABASE_ANON_KEY!.trim(), {
       auth: { persistSession: false, autoRefreshToken: false },
     });
   }
   return _anon;
+}
+
+/** Validate a user JWT (service-role client works when anon key is misconfigured on Vercel). */
+export async function getUserFromAccessToken(token: string) {
+  return serviceDb().auth.getUser(token);
 }
