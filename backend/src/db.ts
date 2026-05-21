@@ -8,7 +8,13 @@
  * are configured via the Vibecode ENV tab.
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import ws from "ws";
 import { env, isSupabaseConfigured } from "./env";
+
+const supabaseClientOptions = {
+  auth: { persistSession: false, autoRefreshToken: false },
+  realtime: { transport: ws },
+};
 
 let _service: SupabaseClient | null = null;
 let _anon: SupabaseClient | null = null;
@@ -29,7 +35,7 @@ export function serviceDb(): SupabaseClient {
     _service = createClient(
       env.SUPABASE_URL!.trim(),
       env.SUPABASE_SERVICE_ROLE_KEY!.trim(),
-      { auth: { persistSession: false, autoRefreshToken: false } }
+      supabaseClientOptions
     );
   }
   return _service;
@@ -38,9 +44,11 @@ export function serviceDb(): SupabaseClient {
 export function anonClient(): SupabaseClient {
   if (!isSupabaseConfigured()) throw new SupabaseNotConfiguredError();
   if (!_anon) {
-    _anon = createClient(env.SUPABASE_URL!.trim(), env.SUPABASE_ANON_KEY!.trim(), {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+    _anon = createClient(
+      env.SUPABASE_URL!.trim(),
+      env.SUPABASE_ANON_KEY!.trim(),
+      supabaseClientOptions
+    );
   }
   return _anon;
 }
