@@ -36,6 +36,7 @@ import type {
   WorkspaceWithRole,
   WorkspaceCreate,
   Workspace,
+  CalendarFeedUrlResponse,
 } from "@shared/types";
 
 export const workspacesApi = {
@@ -153,4 +154,10 @@ export const settingsApi = {
   get: (key: string) => api.get<Setting>(`/api/settings/${key}`),
   upsert: (key: string, value: unknown) =>
     api.put<Setting>(`/api/settings/${key}`, { value }),
+};
+
+export const calendarApi = {
+  getFeedUrl: () => api.get<CalendarFeedUrlResponse>("/api/calendar/feed-url"),
+  regenerateToken: () =>
+    api.post<CalendarFeedUrlResponse>("/api/calendar/regenerate-token"),
 };

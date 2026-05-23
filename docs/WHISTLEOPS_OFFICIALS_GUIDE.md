@@ -112,17 +112,22 @@ The **Schedule** page is where assignors fill crew slots for upcoming games.
 
 ### Open the schedule
 
-1. Go to **Schedule** in the admin sidebar.
-2. Use filters for **zone** and **league type** to narrow the list.
-3. Toggle **upcoming** vs **all** games as needed.
+1. Go to **Schedule** for the **week view** (date range, game cards, add/edit, message crew, incidents).
+2. Go to **Assignment Board** to **assign officials for one day** (availability table, hour focus, officials matrix). Pick a **zone** and date.
+3. Use **Assign today** on Schedule to jump to the board for today.
 
-Games are grouped by date. Each game card shows the slots: Referee 1, Referee 2, Lines 1, Lines 2, and Supervisor.
+Each game card or board slot shows: Referee 1, Referee 2, Lines 1, Lines 2, and Supervisor.
 
 ### Assign or change an official
 
-1. Click an empty or filled slot on a game.
-2. Choose an official from the list. Officials who do not meet the league qualification show a warning.
-3. Save the assignment.
+Use the **Assignment Board** (not Schedule slots):
+
+1. Open **Assignment Board** for the game day (or click **Assign on board** / any slot on a Schedule game card).
+2. Select the zone, then click a slot in the games table or hour-focus panel.
+3. Choose an official from the availability-aware list. Officials who do not meet the league qualification show a warning.
+4. Save the assignment.
+
+On **Schedule**, slots are **read-only** — they show who is assigned and status (Pending, Confirmed, Declined) but always link to the board for changes.
 
 New assignments are often created as **Pending** so the official must accept them. You can also set status to **Confirmed**, **Rejected**, or **Cancelled** when updating an assignment.
 
@@ -130,12 +135,19 @@ New assignments are often created as **Pending** so the official must accept the
 
 | Status | Meaning |
 |--------|---------|
-| **Pending** | Official has been assigned but has not accepted yet |
+| **Draft** | Assigned on the **Assignment Board** but not published — officials do not see it yet |
+| **Pending** | Published; official must accept or decline on **My Schedule** |
 | **Confirmed** | Official accepted (or staff confirmed the slot) |
 | **Rejected** | Official declined |
 | **Cancelled** | Assignment was cancelled |
 
-Unlike GrayJay, WhistleOps does not use a separate “draft” step or yellow/orange/green colors. Assignments are visible to officials once they are pending or confirmed.
+### Publish a day (Assignment Board)
+
+1. Staff the day on **Assignment Board** (assignments start as **Draft**).
+2. When the board is ready, click **Publish day** for that date and zone.
+3. Draft assignments become **Pending**, appear on each official’s **My Schedule**, and each affected official receives one email listing their new games (when email is configured).
+
+Use **Message Assigned Crew** on **Schedule** for a custom note to officials who are already pending or confirmed.
 
 ### Message the assigned crew
 
@@ -157,7 +169,7 @@ Configured recipients receive email based on the game’s league type (see **Inc
 
 - No customizable columns on a grid (fixed game card layout)
 - No calendar pop-up beside each assign dropdown
-- No “finalize draft” button — use **Message Assigned Crew** when you want to notify officials
+- **Publish day** on the Assignment Board replaces a separate “finalize draft” step; **Message Assigned Crew** is still available for custom messages
 - No timekeeper columns
 
 ---
@@ -174,7 +186,16 @@ After sign-in, officials land on **My Schedule** (bottom nav: Schedule).
 
 Accepting moves the assignment to **Confirmed** and includes it in pay calculations. Declining sets **Rejected** so the assignor can pick someone else.
 
-There is no web calendar subscription (webcal) in WhistleOps today. Use the app to view your schedule.
+### Subscribe in your calendar (webcal / ICS)
+
+On **My Schedule**, tap **Add to calendar** to sync confirmed games with Apple Calendar, Google Calendar, or Outlook.
+
+- **Copy subscription link** — paste into your calendar app to keep your schedule updated automatically.
+- **Copy HTTPS link** — use in Google Calendar under “From URL”.
+- **Download .ics file** — one-time import if you prefer a file.
+- **Regenerate link** — invalidates the old link if you need a fresh subscription URL.
+
+Only **confirmed** assignments appear in the feed. Pending games stay in the app until you accept them.
 
 ### My Availability
 

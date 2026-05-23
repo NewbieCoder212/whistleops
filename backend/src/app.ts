@@ -19,6 +19,7 @@ import { zonesRouter } from "./routes/zones";
 import { incidentsRouter } from "./routes/incidents";
 import { gamesheetWebhookRouter } from "./routes/webhooks/gamesheet";
 import { workspacesRouter } from "./routes/workspaces";
+import { calendarRouter } from "./routes/calendar";
 
 const app = new Hono();
 
@@ -107,6 +108,7 @@ app.route("/api/zones", zonesRouter);
 app.route("/api/incidents", incidentsRouter);
 app.route("/api/webhooks/gamesheet", gamesheetWebhookRouter);
 app.route("/api/workspaces", workspacesRouter);
+app.route("/api/calendar", calendarRouter);
 
 app.notFound((c) =>
   c.json({ error: { message: "Not found", code: "NOT_FOUND" } }, 404)

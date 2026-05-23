@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatGameDateShort, formatGameTime, todayYmd } from "@/lib/atlanticTime";
+import { CalendarSubscribeMenu } from "@/features/schedule/CalendarSubscribeMenu";
 
 type GameSnap = {
   id: string;
@@ -157,9 +158,12 @@ export default function OfficialSchedule() {
   return (
     <DashboardLayout>
       <div className="space-y-8">
-        <div>
-          <h1 className="text-xl font-bold">My Schedule</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Your game assignments.</p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold">My Schedule</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Your game assignments.</p>
+          </div>
+          <CalendarSubscribeMenu />
         </div>
 
         {/* Action required */}

@@ -62,8 +62,8 @@ For step-by-step instructions on using WhistleOps, see [WHISTLEOPS_OFFICIALS_GUI
 |---------|---------|------------|-------|-------|
 | Filter assignees by availability | Yes | Qualification enforced; availability not auto-filtered on assign | Partial | Admin can use Availability overview |
 | Filter assignees by qualifications | Yes | Yes (cert level vs league rule) | Full | Warnings when official below minimum |
-| Draft assignments (yellow) | Yes | Not available | Not available | Assignments go live as Pending/Confirmed |
-| Finalize draft → notify officials | Yes | Message Assigned Crew (manual email) | Partial | No separate finalize step |
+| Draft assignments (yellow) | Yes | Yes (DRAFT on Assignment Board) | Full | Officials do not see draft until publish |
+| Finalize draft → notify officials | Yes | Publish day (board) + email per official | Full | Message Assigned Crew still available for custom text |
 | Official accept/decline | After finalize (orange → green) | Pending → Confirmed / Rejected | Full | Officials use My Schedule |
 | Assignment status colors | Yellow / orange / green | Status labels in UI | Partial | Same lifecycle, different presentation |
 
@@ -81,7 +81,7 @@ For step-by-step instructions on using WhistleOps, see [WHISTLEOPS_OFFICIALS_GUI
 | Feature | GrayJay | WhistleOps | Match | Notes |
 |---------|---------|------------|-------|-------|
 | My Schedule / pending assignments | Yes, with role and game details | My Schedule: Action Required + upcoming | Full | |
-| Webcal / Internet calendar subscribe | Yes | Not available | Not available | |
+| Webcal / Internet calendar subscribe | Yes | Yes | Full | Personal feed for confirmed assignments |
 | Link to game page from pending list | Yes | Schedule-centric view | Partial | |
 
 ### Pay and finance
@@ -135,7 +135,6 @@ These GrayJay capabilities are **not** in WhistleOps today. They are listed here
 - Cross-organization official import
 - Draft → Finalize assignment workflow with color states
 - Assign grid column customization and per-official calendar shortcut
-- Webcal subscription for personal schedule
 - Officials directory with contact privacy
 - Payment adjustments and payment line items (ledger-style balance)
 - Incident reports linked to penalties; multi-report history UI

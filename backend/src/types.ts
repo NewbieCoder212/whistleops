@@ -834,6 +834,14 @@ export const IncidentNotifyEmailsSchema = z.object({
 });
 export type IncidentNotifyEmails = z.infer<typeof IncidentNotifyEmailsSchema>;
 
+// ─── calendar feed ────────────────────────────────────────────────────────────
+
+export const CalendarFeedUrlResponseSchema = z.object({
+  feedUrl: z.string().url(),
+  webcalUrl: z.string().startsWith("webcal://"),
+});
+export type CalendarFeedUrlResponse = z.infer<typeof CalendarFeedUrlResponseSchema>;
+
 // ─── API envelope ─────────────────────────────────────────────────────────────
 
 export const ApiErrorSchema = z.object({
