@@ -11,7 +11,9 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { Zone } from "@shared/types";
+import type { Zone, Venue } from "@shared/types";
+import { RinkFilter } from "./RinkFilter";
+import { venuesApi } from "@/lib/resources";
 import {
   type ScheduleFilterState,
   todayIso,
@@ -29,6 +31,8 @@ export const LEAGUE_TYPES = ["Minor", "Senior", "Adult Rec"] as const;
 interface ScheduleFilterBarProps {
   value: ScheduleFilterState;
   onChange: (f: ScheduleFilterState) => void;
+  /** Games in the current filtered date range (for rink counts). */
+  scheduleGames?: { venue_id: string | null; venue?: { id?: string } | null }[];
   /** Opens Assignment Board for a single day (e.g. Today). */
   onOpenAssignmentBoard?: (date: string) => void;
   /** Logged-in user's home zone (for assignor default label). */
@@ -39,6 +43,7 @@ interface ScheduleFilterBarProps {
 export function ScheduleFilterBar({
   value,
   onChange,
+  scheduleGames = [],
   onOpenAssignmentBoard,
   homeZoneId,
   className,
@@ -49,11 +54,18 @@ export function ScheduleFilterBar({
     staleTime: 10 * 60 * 1000,
   });
 
+  const { data: venues = [] } = useQuery<Venue[]>({
+    queryKey: ["venues", "assignable"],
+    queryFn: () => venuesApi.list({ assignable: true }),
+    staleTime: 10 * 60 * 1000,
+  });
+
   const hasFilter =
     value.zoneId !== null ||
     value.leagueType !== null ||
     value.unassignedOnly ||
-    value.declinedOnly;
+    value.declinedOnly ||
+    (value.venueIds !== null && value.venueIds.length > 0);
 
   function patch(partial: Partial<ScheduleFilterState>) {
     onChange({ ...value, ...partial });
@@ -68,6 +80,7 @@ export function ScheduleFilterBar({
       dateTo: addDaysIso(from, 7),
       unassignedOnly: false,
       declinedOnly: false,
+      venueIds: null,
     });
   }
 
@@ -111,7 +124,9 @@ export function ScheduleFilterBar({
           </label>
           <Select
             value={value.zoneId ?? "all"}
-            onValueChange={(v) => patch({ zoneId: v === "all" ? null : v })}
+            onValueChange={(v) =>
+              patch({ zoneId: v === "all" ? null : v, venueIds: null })
+            }
           >
             <SelectTrigger className="h-8 w-auto min-w-[160px] max-w-[240px] text-xs border-border">
               <SelectValue placeholder="All Zones" />
@@ -148,6 +163,18 @@ export function ScheduleFilterBar({
           })}
         </div>
       </div>
+
+      {value.zoneId ? (
+        <div className="flex flex-wrap items-center gap-2 pl-0 sm:pl-[4.5rem]">
+          <RinkFilter
+            zoneId={value.zoneId}
+            venues={venues}
+            venueIds={value.venueIds}
+            onChange={(venueIds) => patch({ venueIds })}
+            games={scheduleGames}
+          />
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
         <Calendar className="h-3.5 w-3.5 text-muted-foreground" />

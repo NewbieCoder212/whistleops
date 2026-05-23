@@ -29,6 +29,8 @@ export type ScheduleFilterState = {
   dateTo: string;
   unassignedOnly: boolean;
   declinedOnly: boolean;
+  /** null = all rinks in the active zone */
+  venueIds: string[] | null;
 };
 
 export function defaultScheduleFilters(): ScheduleFilterState {
@@ -40,6 +42,7 @@ export function defaultScheduleFilters(): ScheduleFilterState {
     dateTo: addDaysIso(from, 6),
     unassignedOnly: false,
     declinedOnly: false,
+    venueIds: null,
   };
 }
 

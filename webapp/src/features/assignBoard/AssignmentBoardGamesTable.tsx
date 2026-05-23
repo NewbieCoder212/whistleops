@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { ChevronRight } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
 import type { AssignBoardGame, AssignBoardSlot, Position } from "@shared/types";
 import type { ScheduleAssignment, ScheduleGame } from "@/features/schedule/scheduleTypes";
 import { usePositionSlots } from "@/hooks/usePositionSlots";
@@ -20,6 +20,10 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import {
+  filterGamesByVenueIds,
+  groupGamesByVenue,
+} from "@/features/filters/rinkFilterUtils";
 
 const SLOT_RING: Record<string, string> = {
   filled: "bg-blue-500/10 border-blue-500/30 text-foreground",
@@ -121,38 +125,162 @@ function MiniSlot({
 
 interface AssignmentBoardGamesTableProps {
   games: AssignBoardGame[];
+  venueIds?: string[] | null;
   activeGameId: string | null;
   onSelectGame: (game: AssignBoardGame) => void;
   onSlotClick: (game: ScheduleGame, position: Position, assignment: ScheduleAssignment | null) => void;
 }
 
+function GamesTableHeader({ showRinkColumn }: { showRinkColumn: boolean }) {
+  const { slots: positionSlots } = usePositionSlots();
+
+  return (
+    <thead>
+      <tr className="border-b border-border bg-muted/40 text-left">
+        <th className="px-3 py-2 font-semibold w-[88px]">Time</th>
+        <th className="px-3 py-2 font-semibold min-w-[160px]">Matchup</th>
+        {showRinkColumn ? (
+          <th className="px-3 py-2 font-semibold min-w-[100px]">Rink</th>
+        ) : null}
+        <th className="px-3 py-2 font-semibold w-12 text-center">Open</th>
+        {positionSlots.map((p) => (
+          <th key={p.key} className="px-1 py-2 font-semibold text-center w-[60px]">
+            {p.abbr}
+          </th>
+        ))}
+      </tr>
+    </thead>
+  );
+}
+
+function GameRow({
+  game,
+  activeGameId,
+  showRinkColumn,
+  onSelectGame,
+  onSlotClick,
+}: {
+  game: AssignBoardGame;
+  activeGameId: string | null;
+  showRinkColumn: boolean;
+  onSelectGame: (game: AssignBoardGame) => void;
+  onSlotClick: (game: ScheduleGame, position: Position, assignment: ScheduleAssignment | null) => void;
+}) {
+  const { slots: positionSlots } = usePositionSlots();
+  const scheduleGame = toScheduleGame(game);
+  const { timeStr } = formatGameTime(game.date_time);
+  const slotMap = new Map(game.slots.map((s) => [s.position, s]));
+  const active = activeGameId === game.id;
+  const open = openSlotCount(game);
+
+  return (
+    <tr
+      className={cn(
+        "border-b border-border/50 cursor-pointer transition-colors hover:bg-muted/30",
+        active && "bg-primary/5 ring-1 ring-inset ring-primary/20"
+      )}
+      onClick={() => onSelectGame(game)}
+    >
+      <td className="px-3 py-2 font-semibold tabular-nums whitespace-nowrap">{timeStr}</td>
+      <td className="px-3 py-2">
+        <span className="font-medium">
+          {game.home_team ?? "TBD"} vs {game.away_team ?? "TBD"}
+        </span>
+        {game.league_tier ? (
+          <span className="text-muted-foreground ml-1">· {game.league_tier}</span>
+        ) : null}
+      </td>
+      {showRinkColumn ? (
+        <td className="px-3 py-2 text-muted-foreground truncate max-w-[140px]">
+          {game.venue?.name ?? "—"}
+        </td>
+      ) : null}
+      <td className="px-3 py-2 text-center font-medium tabular-nums">{open}</td>
+      {positionSlots.map((pos) => {
+        const slot = slotMap.get(pos.key);
+        if (!slot) return <td key={pos.key} />;
+        const assignment = slot.assignment
+          ? ({
+              id: slot.assignment.id,
+              game_id: slot.assignment.game_id,
+              official_id: slot.assignment.official_id,
+              position: slot.assignment.position,
+              status: slot.assignment.status,
+              cancel_reason: slot.assignment.cancel_reason,
+              created_at: slot.assignment.created_at,
+              updated_at: slot.assignment.updated_at,
+              official: slot.assignment.official
+                ? {
+                    id: slot.assignment.official.id,
+                    full_name: slot.assignment.official.full_name,
+                    official_type: slot.assignment.official.official_type,
+                    email: slot.assignment.official.email,
+                  }
+                : null,
+            } as ScheduleAssignment)
+          : null;
+        return (
+          <td key={pos.key} className="px-1 py-1.5 text-center">
+            <MiniSlot
+              abbr={pos.abbr}
+              slot={slot}
+              onClick={() => onSlotClick(scheduleGame, pos.key, assignment)}
+            />
+          </td>
+        );
+      })}
+    </tr>
+  );
+}
+
 export function AssignmentBoardGamesTable({
   games,
+  venueIds = null,
   activeGameId,
   onSelectGame,
   onSlotClick,
 }: AssignmentBoardGamesTableProps) {
-  const { slots: positionSlots } = usePositionSlots();
   const [unassignedOnly, setUnassignedOnly] = useState(false);
   const [awaitingOnly, setAwaitingOnly] = useState(false);
   const [declinedOnly, setDeclinedOnly] = useState(false);
+  const [collapsedVenues, setCollapsedVenues] = useState<Set<string>>(new Set());
 
-  const sorted = useMemo(
-    () => [...games].sort((a, b) => a.date_time.localeCompare(b.date_time)),
-    [games]
-  );
-
-  const visible = useMemo(() => {
-    let list = sorted;
+  const afterStatusFilters = useMemo(() => {
+    let list = [...games].sort((a, b) => a.date_time.localeCompare(b.date_time));
     if (unassignedOnly) list = list.filter(gameHasOpenSlot);
     if (awaitingOnly) list = list.filter(gameAwaitingConfirmation);
     if (declinedOnly) list = list.filter(gameHasDeclinedAssignment);
     return list;
-  }, [sorted, unassignedOnly, awaitingOnly, declinedOnly]);
+  }, [games, unassignedOnly, awaitingOnly, declinedOnly]);
+
+  const visible = useMemo(
+    () => filterGamesByVenueIds(afterStatusFilters, venueIds),
+    [afterStatusFilters, venueIds]
+  );
+
+  const venueGroups = useMemo(() => groupGamesByVenue(visible), [visible]);
+  const groupByRink = venueGroups.length > 0;
+
+  useEffect(() => {
+    if (venueGroups.length > 5) {
+      setCollapsedVenues(new Set(venueGroups.map((g) => g.venueId)));
+    } else {
+      setCollapsedVenues(new Set());
+    }
+  }, [venueGroups.length, venueGroups.map((g) => g.venueId).join(",")]);
 
   const jumpToNext = () => {
-    const next = sorted.find(gameHasOpenSlot);
+    const next = visible.find(gameHasOpenSlot);
     if (next) onSelectGame(next);
+  };
+
+  const toggleVenueCollapsed = (venueId: string) => {
+    setCollapsedVenues((prev) => {
+      const next = new Set(prev);
+      if (next.has(venueId)) next.delete(venueId);
+      else next.add(venueId);
+      return next;
+    });
   };
 
   if (games.length === 0) {
@@ -162,6 +290,17 @@ export function AssignmentBoardGamesTable({
       </p>
     );
   }
+
+  const emptyMessage =
+    venueIds && venueIds.length === 0
+      ? "No rinks selected — choose rinks in the filter above."
+      : declinedOnly
+        ? "No games with declined assignments."
+        : awaitingOnly
+          ? "No games with pending official responses."
+          : unassignedOnly
+            ? "All games are fully assigned."
+            : "No games for selected rinks — adjust the rink filter.";
 
   return (
     <div className="space-y-2">
@@ -204,101 +343,77 @@ export function AssignmentBoardGamesTable({
         </Button>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-border">
-        <table className="w-full text-xs border-collapse">
-          <thead>
-            <tr className="border-b border-border bg-muted/40 text-left">
-              <th className="px-3 py-2 font-semibold w-[88px]">Time</th>
-              <th className="px-3 py-2 font-semibold min-w-[160px]">Matchup</th>
-              <th className="px-3 py-2 font-semibold min-w-[100px]">Rink</th>
-              <th className="px-3 py-2 font-semibold w-12 text-center">Open</th>
-              {positionSlots.map((p) => (
-                <th key={p.key} className="px-1 py-2 font-semibold text-center w-[60px]">
-                  {p.abbr}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map((game) => {
-              const scheduleGame = toScheduleGame(game);
-              const { timeStr } = formatGameTime(game.date_time);
-              const slotMap = new Map(game.slots.map((s) => [s.position, s]));
-              const active = activeGameId === game.id;
-              const open = openSlotCount(game);
-
-              return (
-                <tr
-                  key={game.id}
-                  className={cn(
-                    "border-b border-border/50 cursor-pointer transition-colors hover:bg-muted/30",
-                    active && "bg-primary/5 ring-1 ring-inset ring-primary/20"
-                  )}
-                  onClick={() => onSelectGame(game)}
+      {visible.length === 0 ? (
+        <p className="text-sm text-muted-foreground py-8 text-center rounded-xl border border-dashed border-border">
+          {emptyMessage}
+        </p>
+      ) : groupByRink ? (
+        <div className="space-y-3">
+          {venueGroups.map((group) => {
+            const openSlots = group.games.reduce((n, g) => n + openSlotCount(g), 0);
+            const collapsed = collapsedVenues.has(group.venueId);
+            return (
+              <div key={group.venueId} className="rounded-xl border border-border overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleVenueCollapsed(group.venueId)}
+                  className="w-full flex items-center justify-between gap-2 px-3 py-2.5 bg-muted/40 hover:bg-muted/60 transition-colors text-left"
                 >
-                  <td className="px-3 py-2 font-semibold tabular-nums whitespace-nowrap">{timeStr}</td>
-                  <td className="px-3 py-2">
-                    <span className="font-medium">
-                      {game.home_team ?? "TBD"} vs {game.away_team ?? "TBD"}
-                    </span>
-                    {game.league_tier ? (
-                      <span className="text-muted-foreground ml-1">· {game.league_tier}</span>
-                    ) : null}
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground truncate max-w-[140px]">
-                    {game.venue?.name ?? "—"}
-                  </td>
-                  <td className="px-3 py-2 text-center font-medium tabular-nums">{open}</td>
-                  {positionSlots.map((pos) => {
-                    const slot = slotMap.get(pos.key);
-                    if (!slot) return <td key={pos.key} />;
-                    const assignment = slot.assignment
-                      ? ({
-                          id: slot.assignment.id,
-                          game_id: slot.assignment.game_id,
-                          official_id: slot.assignment.official_id,
-                          position: slot.assignment.position,
-                          status: slot.assignment.status,
-                          cancel_reason: slot.assignment.cancel_reason,
-                          created_at: slot.assignment.created_at,
-                          updated_at: slot.assignment.updated_at,
-                          official: slot.assignment.official
-                            ? {
-                                id: slot.assignment.official.id,
-                                full_name: slot.assignment.official.full_name,
-                                official_type: slot.assignment.official.official_type,
-                                email: slot.assignment.official.email,
-                              }
-                            : null,
-                        } as ScheduleAssignment)
-                      : null;
-                    return (
-                      <td key={pos.key} className="px-1 py-1.5 text-center">
-                        <MiniSlot
-                          abbr={pos.abbr}
-                          slot={slot}
-                          onClick={() => onSlotClick(scheduleGame, pos.key, assignment)}
-                        />
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {visible.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-6 text-center">
-            {declinedOnly
-              ? "No games with declined assignments."
-              : awaitingOnly
-                ? "No games with pending official responses."
-                : unassignedOnly
-                  ? "All games are fully assigned."
-                  : "No games match the current filters."}
-          </p>
-        ) : null}
-      </div>
+                  <span className="flex items-center gap-2 min-w-0">
+                    {collapsed ? (
+                      <ChevronDown className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                    ) : (
+                      <ChevronUp className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                    )}
+                    <span className="text-sm font-semibold truncate">{group.venueName}</span>
+                  </span>
+                  <span className="text-xs text-muted-foreground flex-shrink-0">
+                    {group.games.length} game{group.games.length !== 1 ? "s" : ""}
+                    {openSlots > 0 ? ` · ${openSlots} open` : ""}
+                  </span>
+                </button>
+                {!collapsed ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <GamesTableHeader showRinkColumn={false} />
+                      <tbody>
+                        {group.games.map((game) => (
+                          <GameRow
+                            key={game.id}
+                            game={game}
+                            activeGameId={activeGameId}
+                            showRinkColumn={false}
+                            onSelectGame={onSelectGame}
+                            onSlotClick={onSlotClick}
+                          />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <table className="w-full text-xs border-collapse">
+            <GamesTableHeader showRinkColumn={true} />
+            <tbody>
+              {visible.map((game) => (
+                <GameRow
+                  key={game.id}
+                  game={game}
+                  activeGameId={activeGameId}
+                  showRinkColumn={true}
+                  onSelectGame={onSelectGame}
+                  onSlotClick={onSlotClick}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

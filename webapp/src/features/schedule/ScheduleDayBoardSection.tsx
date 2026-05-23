@@ -8,6 +8,7 @@ import { AssignmentBoardGamesTable } from "@/features/assignBoard/AssignmentBoar
 import { AssignmentBoardHourFocus } from "@/features/assignBoard/AssignmentBoardHourFocus";
 import { AssignmentBoardOfficials } from "@/features/assignBoard/AssignmentBoardOfficials";
 import { computeBoardSummary } from "@/features/assignBoard/assignBoardUtils";
+import { filterGamesByVenueIds } from "@/features/filters/rinkFilterUtils";
 import type { AssignTarget, ScheduleAssignment, ScheduleGame } from "@/features/schedule/scheduleTypes";
 import { assignBoardApi } from "@/lib/resources";
 import { ApiError } from "@/lib/api";
@@ -21,6 +22,7 @@ export type ScheduleDayBoardAssignContext = {
 export interface ScheduleDayBoardSectionProps {
   date: string;
   zoneId: string | null;
+  venueIds?: string[] | null;
   leagueType: string | null;
   target: AssignTarget | null;
   onSlotClick: (
@@ -40,6 +42,7 @@ export interface ScheduleDayBoardSectionProps {
 export function ScheduleDayBoardSection({
   date,
   zoneId,
+  venueIds = null,
   leagueType,
   target,
   onSlotClick,
@@ -66,10 +69,21 @@ export function ScheduleDayBoardSection({
     [board?.games, activeGameId]
   );
 
+  const filteredGames = useMemo(
+    () => (board ? filterGamesByVenueIds(board.games, venueIds) : []),
+    [board, venueIds]
+  );
+
   const summary = useMemo(
     () =>
-      board ? computeBoardSummary(board.games, board.officials, board.summary) : null,
-    [board]
+      board
+        ? computeBoardSummary(
+            filteredGames,
+            board.officials,
+            venueIds !== null ? undefined : board.summary
+          )
+        : null,
+    [board, filteredGames, venueIds]
   );
 
   const matrixDefaultOpen = (board?.officials.length ?? 0) <= 25;
@@ -206,6 +220,7 @@ export function ScheduleDayBoardSection({
             </h2>
             <AssignmentBoardGamesTable
               games={board.games}
+              venueIds={venueIds}
               activeGameId={activeGameId}
               onSelectGame={handleSelectGame}
               onSlotClick={handleSlotClick}
@@ -228,7 +243,7 @@ export function ScheduleDayBoardSection({
           <section>
             <AssignmentBoardOfficials
               officials={board.officials}
-              games={board.games}
+              games={filteredGames}
               highlightHour={highlightHour}
               highlightOfficialId={highlightOfficialId}
               defaultOpen={matrixDefaultOpen}

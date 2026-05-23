@@ -17,6 +17,8 @@ import {
   zoneSelectLabel,
 } from "@/features/filters/scheduleFilterUtils";
 import { LEAGUE_TYPES } from "@/features/filters/ZoneLeagueFilter";
+import { RinkFilter } from "@/features/filters/RinkFilter";
+import { isRinkFilterActive, venuesInZone } from "@/features/filters/rinkFilterUtils";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { Button } from "@/components/ui/button";
@@ -30,6 +32,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { assignBoardApi, venuesApi } from "@/lib/resources";
 import type { Position, Zone } from "@shared/types";
 
 export default function AssignmentBoardPage() {
@@ -44,6 +47,7 @@ export default function AssignmentBoardPage() {
 
   const [date, setDate] = useState(initialDate);
   const [zoneId, setZoneId] = useState<string | null>(null);
+  const [venueIds, setVenueIds] = useState<string[] | null>(null);
   const [leagueType, setLeagueType] = useState<string | null>(null);
   const [target, setTarget] = useState<AssignTarget | null>(null);
   const [preselectedOfficialId, setPreselectedOfficialId] = useState<string | null>(null);
@@ -53,6 +57,23 @@ export default function AssignmentBoardPage() {
     queryKey: ["zones"],
     queryFn: () => api.get<Zone[]>("/api/zones"),
     staleTime: 10 * 60 * 1000,
+  });
+
+  const { data: venues = [] } = useQuery({
+    queryKey: ["venues", "assignable"],
+    queryFn: () => venuesApi.list({ assignable: true }),
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const { data: boardPreview } = useQuery({
+    queryKey: ["assign-board", date, zoneId, leagueType],
+    queryFn: () =>
+      assignBoardApi.get({
+        date,
+        zoneId: zoneId!,
+        leagueType: leagueType ?? undefined,
+      }),
+    enabled: !!zoneId,
   });
 
   useEffect(() => {
@@ -82,8 +103,11 @@ export default function AssignmentBoardPage() {
 
   const handleZoneChange = (id: string) => {
     setZoneId(id);
+    setVenueIds(null);
     saveZonePreference(user?.id, id);
   };
+
+  const rinksInZoneCount = zoneId ? venuesInZone(venues, zoneId).length : 0;
 
   const handleAssignContextChange = useCallback((ctx: ScheduleDayBoardAssignContext) => {
     setDayBoardContext(ctx);
@@ -189,11 +213,39 @@ export default function AssignmentBoardPage() {
               </button>
             ))}
           </div>
+
+          <RinkFilter
+            zoneId={zoneId}
+            venues={venues}
+            venueIds={venueIds}
+            onChange={setVenueIds}
+            games={boardPreview?.games}
+            boardGames={boardPreview?.games}
+            showOpenSlots
+          />
         </div>
+
+        {zoneId && isRinkFilterActive(venueIds, rinksInZoneCount) ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+            <span>
+              Showing {venueIds!.length} of {rinksInZoneCount} rinks in this zone.
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setVenueIds(null)}
+            >
+              Show all rinks
+            </Button>
+          </div>
+        ) : null}
 
         <ScheduleDayBoardSection
           date={date}
           zoneId={zoneId}
+          venueIds={venueIds}
           leagueType={leagueType}
           target={target}
           onSlotClick={handleSlotClick}

@@ -28,6 +28,10 @@ import { useProfile } from "@/hooks/useProfile";
 import type { ScheduleGame } from "@/features/schedule/scheduleTypes";
 import { toDateKey, formatDateHeader } from "@/features/schedule/scheduleTypes";
 import { gameHasDeclinedAssignment } from "@/features/assignBoard/assignBoardUtils";
+import {
+  filterGamesByVenueIds,
+  groupGamesByVenue,
+} from "@/features/filters/rinkFilterUtils";
 
 export default function Schedule() {
   const { user } = useAuth();
@@ -101,9 +105,14 @@ export default function Schedule() {
     });
   }, [games, filters.leagueType, filters.declinedOnly]);
 
+  const venueFiltered = useMemo(
+    () => filterGamesByVenueIds(filtered, filters.venueIds),
+    [filtered, filters.venueIds]
+  );
+
   const grouped = useMemo(() => {
     const map = new Map<string, ScheduleGame[]>();
-    for (const g of filtered) {
+    for (const g of venueFiltered) {
       const key = toDateKey(g.date_time);
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(g);
@@ -113,9 +122,9 @@ export default function Schedule() {
       .map(([key, dayGames]) => ({
         key,
         label: formatDateHeader(key),
-        games: dayGames,
+        rinkGroups: groupGamesByVenue(dayGames),
       }));
-  }, [filtered]);
+  }, [venueFiltered]);
 
   return (
     <AdminLayout>
@@ -147,6 +156,7 @@ export default function Schedule() {
           <ScheduleFilterBar
             value={filters}
             onChange={handleFiltersChange}
+            scheduleGames={filtered}
             homeZoneId={profile?.zone_id}
             onOpenAssignmentBoard={(date) =>
               navigate(`/admin/assignment-board?date=${date}`)
@@ -172,14 +182,20 @@ export default function Schedule() {
             </div>
             <div className="text-center">
               <p className="text-sm font-medium">
-                {filters.declinedOnly
-                  ? "No games with declined assignments"
-                  : "No games match filters"}
+                {filters.venueIds !== null && filters.venueIds.length === 0
+                  ? "No rinks selected"
+                  : filters.venueIds !== null && filters.venueIds.length > 0
+                    ? "No games for selected rinks"
+                    : filters.declinedOnly
+                      ? "No games with declined assignments"
+                      : "No games match filters"}
               </p>
               <p className="text-xs mt-0.5">
-                {filters.declinedOnly
-                  ? "Try a wider date range or another zone."
-                  : "Try a wider date range, another zone, or add a game."}
+                {filters.venueIds !== null
+                  ? "Adjust the rink filter or try a wider date range."
+                  : filters.declinedOnly
+                    ? "Try a wider date range or another zone."
+                    : "Try a wider date range, another zone, or add a game."}
               </p>
               <Button
                 size="sm"
@@ -208,21 +224,32 @@ export default function Schedule() {
                   </Link>
                   <span className="text-[10px] text-muted-foreground/50 border-b border-dashed border-border flex-1" />
                   <span className="text-[10px] text-muted-foreground">
-                    {group.games.length} game{group.games.length !== 1 ? "s" : ""}
+                    {group.rinkGroups.reduce((n, rg) => n + rg.games.length, 0)} game
+                    {group.rinkGroups.reduce((n, rg) => n + rg.games.length, 0) !== 1 ? "s" : ""}
                   </span>
                 </div>
-                <div className="space-y-2">
-                  {group.games.map((game) => (
-                    <ScheduleGameCard
-                      key={game.id}
-                      game={game}
-                      zonesById={zonesById}
-                      assignBoardHref={`/admin/assignment-board?date=${group.key}`}
-                      onMessageClick={() => setMessageGame(game)}
-                      onIncidentClick={() => setIncidentGame(game)}
-                      onEditClick={() => setEditGame(game)}
-                      onDeleteClick={() => setDeleteGame(game)}
-                    />
+                <div className="space-y-4 pl-2 sm:pl-3 border-l-2 border-border/60 ml-1">
+                  {group.rinkGroups.map((rinkGroup) => (
+                    <div key={rinkGroup.venueId} className="space-y-2">
+                      <p className="text-[11px] font-semibold text-muted-foreground">
+                        {rinkGroup.venueName}
+                        <span className="font-normal ml-1">({rinkGroup.games.length})</span>
+                      </p>
+                      <div className="space-y-2">
+                        {rinkGroup.games.map((game) => (
+                          <ScheduleGameCard
+                            key={game.id}
+                            game={game}
+                            zonesById={zonesById}
+                            assignBoardHref={`/admin/assignment-board?date=${group.key}`}
+                            onMessageClick={() => setMessageGame(game)}
+                            onIncidentClick={() => setIncidentGame(game)}
+                            onEditClick={() => setEditGame(game)}
+                            onDeleteClick={() => setDeleteGame(game)}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
