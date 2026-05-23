@@ -180,6 +180,35 @@ export type VenueCreate = z.infer<typeof VenueCreateSchema>;
 export const VenueUpdateSchema = VenueCreateSchema.partial();
 export type VenueUpdate = z.infer<typeof VenueUpdateSchema>;
 
+export const BulkVenueRowSchema = z.object({
+  name: z.string().min(1),
+  zone: z.string().optional(),
+  zone_number: z.number().int().min(1).max(9).optional(),
+  zone_name: z.string().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  province: z.string().optional(),
+  postal: z.string().optional(),
+  assignable: z.boolean().default(true),
+});
+export type BulkVenueRow = z.infer<typeof BulkVenueRowSchema>;
+
+export const BulkVenueImportPayloadSchema = z.object({
+  rows: z.array(BulkVenueRowSchema),
+  update_existing: z.boolean().default(false),
+});
+export type BulkVenueImportPayload = z.infer<typeof BulkVenueImportPayloadSchema>;
+
+export const BulkVenueImportResultSchema = z.object({
+  inserted: z.number(),
+  skipped: z.number(),
+  updated: z.number(),
+  errors: z.array(
+    z.object({ row: z.number(), field: z.string(), message: z.string() })
+  ),
+});
+export type BulkVenueImportResult = z.infer<typeof BulkVenueImportResultSchema>;
+
 // ─── profiles ─────────────────────────────────────────────────────────────────
 
 export const ProfileSchema = z.object({
@@ -620,6 +649,7 @@ export const AssignmentPayLineSchema = z.object({
   rate_label: nullableText,
   cash_game: z.boolean().optional(),
   travel_pay_enabled: z.boolean().optional(),
+  rate_zone_id: uuid.nullable().optional(),
 });
 export type AssignmentPayLine = z.infer<typeof AssignmentPayLineSchema>;
 
@@ -677,9 +707,23 @@ export const PayReportSchema = z.object({
   season: SeasonBoundsSchema,
   zone_id: uuid.nullable().optional(),
   zone_name: z.string().nullable().optional(),
+  finance_scope: z.enum(["all", "zone"]).optional(),
   generated_at: isoTs,
 });
 export type PayReport = z.infer<typeof PayReportSchema>;
+
+export const ZonePayRatesResponseSchema = z.object({
+  zone_id: uuid,
+  pay_rates: PayRatesMatrixSchema,
+  source: z.enum(["zone", "workspace_default"]),
+  updated_at: isoTs.optional(),
+});
+export type ZonePayRatesResponse = z.infer<typeof ZonePayRatesResponseSchema>;
+
+export const ZonePayRatesUpsertSchema = z.object({
+  pay_rates: PayRatesMatrixSchema,
+});
+export type ZonePayRatesUpsert = z.infer<typeof ZonePayRatesUpsertSchema>;
 
 /** POST /api/pay-report/approve request body. */
 export const PayApproveRequestSchema = z.object({

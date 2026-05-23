@@ -17,6 +17,8 @@ import type {
   Venue,
   VenueCreate,
   VenueUpdate,
+  BulkVenueImportPayload,
+  BulkVenueImportResult,
   Assignment,
   AssignmentCreate,
   AssignmentUpdate,
@@ -37,6 +39,9 @@ import type {
   WorkspaceCreate,
   Workspace,
   CalendarFeedUrlResponse,
+  Zone,
+  ZonePayRatesResponse,
+  PayRatesMatrix,
 } from "@shared/types";
 
 export const workspacesApi = {
@@ -98,6 +103,8 @@ export const venuesApi = {
   },
   get: (id: string) => api.get<Venue>(`/api/venues/${id}`),
   create: (body: VenueCreate) => api.post<Venue>("/api/venues", body),
+  bulk: (body: BulkVenueImportPayload) =>
+    api.post<BulkVenueImportResult>("/api/venues/bulk", body),
   update: (id: string, body: VenueUpdate) => api.put<Venue>(`/api/venues/${id}`, body),
   delete: (id: string) => api.delete<{ id: string }>(`/api/venues/${id}`),
 };
@@ -147,6 +154,17 @@ export const assignBoardApi = {
   },
   publish: (body: { date: string; zoneId: string; leagueType?: string }) =>
     api.post<AssignBoardPublishResult>("/api/assign-board/publish", body),
+};
+
+export const zonesApi = {
+  list: () => api.get<Zone[]>("/api/zones"),
+  payRates: {
+    get: (zoneId: string) => api.get<ZonePayRatesResponse>(`/api/zones/${zoneId}/pay-rates`),
+    upsert: (zoneId: string, pay_rates: PayRatesMatrix) =>
+      api.put<ZonePayRatesResponse>(`/api/zones/${zoneId}/pay-rates`, { pay_rates }),
+    copyDefault: (zoneId: string) =>
+      api.post<ZonePayRatesResponse>(`/api/zones/${zoneId}/pay-rates/copy-default`, {}),
+  },
 };
 
 export const settingsApi = {

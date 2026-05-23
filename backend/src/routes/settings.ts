@@ -90,6 +90,21 @@ settingsRouter.put("/:key", requireWorkspaceStaff, async (c) =>
     const key = c.req.param("key");
     const workspaceId = c.get("workspaceId");
 
+    if (key === "pay_rates") {
+      const profileRole = c.get("profileRole");
+      if (profileRole !== "ADMIN") {
+        return c.json(
+          {
+            error: {
+              message: "Only provincial admins may edit the default pay rates template",
+              code: "FORBIDDEN",
+            },
+          },
+          403
+        );
+      }
+    }
+
     let value = body.value;
     if (key === "pay_rates") {
       const parsed = PayRatesMatrixSchema.safeParse(parsePayRates(body.value));

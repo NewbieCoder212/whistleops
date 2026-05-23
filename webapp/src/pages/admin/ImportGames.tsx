@@ -9,10 +9,12 @@ import { Separator } from "@/components/ui/separator";
 import { api } from "@/lib/api";
 import type { BulkImportResult } from "@shared/types";
 import type { CsvParseResult } from "@/features/games/csvParser";
+import { useTranslation } from "@/i18n/I18nProvider";
 
 type Stage = "idle" | "preview" | "success" | "error";
 
 export default function ImportGames() {
+  const { t } = useTranslation();
   const [stage, setStage] = useState<Stage>("idle");
   const [parseResult, setParseResult] = useState<CsvParseResult | null>(null);
   const [fileName, setFileName] = useState<string>("");
@@ -59,10 +61,8 @@ export default function ImportGames() {
       <div className="space-y-6 max-w-5xl">
         {/* Header */}
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Import Games</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Upload a CSV export from your parent league system to bulk-import the schedule.
-          </p>
+          <h1 className="text-xl font-semibold tracking-tight">{t("importGames.title")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t("importGames.description")}</p>
         </div>
 
         <Separator />
@@ -79,10 +79,10 @@ export default function ImportGames() {
         {parseResult && stage === "preview" && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Preview</h2>
+              <h2 className="text-sm font-semibold">{t("importGames.preview")}</h2>
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" onClick={handleClear} className="h-8">
-                  Cancel
+                  {t("common.cancel")}
                 </Button>
                 <Button
                   size="sm"
@@ -93,12 +93,12 @@ export default function ImportGames() {
                   {isPending ? (
                     <>
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      Importing…
+                      {t("importGames.importing")}
                     </>
                   ) : (
                     <>
                       <Upload className="h-3.5 w-3.5" />
-                      Import {validRows.length} Game{validRows.length !== 1 ? "s" : ""}
+                      {t("importGames.importButton", { count: validRows.length })}
                     </>
                   )}
                 </Button>
@@ -120,11 +120,13 @@ export default function ImportGames() {
               )}
               <div>
                 <p className="font-semibold text-sm">
-                  {stage === "success" ? "Import complete" : "Import encountered errors"}
+                  {stage === "success" ? t("importGames.result.success") : t("importGames.result.error")}
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {importResult.inserted} game{importResult.inserted !== 1 ? "s" : ""} inserted
-                  {importResult.skipped > 0 ? `, ${importResult.skipped} skipped` : ""}
+                  {t("importGames.result.summary", {
+                    inserted: importResult.inserted,
+                    skipped: importResult.skipped,
+                  })}
                 </p>
               </div>
             </div>
@@ -133,14 +135,18 @@ export default function ImportGames() {
               <div className="space-y-1 max-h-40 overflow-y-auto">
                 {importResult.errors.map((e, i) => (
                   <p key={i} className="text-xs text-destructive">
-                    Row {e.row} [{e.field}]: {e.message}
+                    {t("importGames.result.rowError", {
+                      row: e.row,
+                      field: e.field,
+                      message: e.message,
+                    })}
                   </p>
                 ))}
               </div>
             )}
 
             <Button variant="outline" size="sm" onClick={handleClear} className="h-8">
-              Import another file
+              {t("importGames.importAnother")}
             </Button>
           </div>
         )}

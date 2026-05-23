@@ -73,15 +73,6 @@ export function saveZonePreference(userId: string | undefined, zoneId: string | 
   else localStorage.removeItem(key);
 }
 
-export function zoneSelectLabel(
-  name: string,
-  zoneId: string,
-  homeZoneId?: string | null
-): string {
-  if (homeZoneId && zoneId === homeZoneId) return `${name} (home)`;
-  return name;
-}
-
 /**
  * Initial zone for schedule/board/finance filters.
  * Non-admins with a profile home zone start there; admins prefer last saved selection.

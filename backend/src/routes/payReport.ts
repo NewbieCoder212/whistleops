@@ -2,12 +2,16 @@ import { Hono } from "hono";
 import { serviceDb } from "../db";
 import { dbError, runRoute } from "../lib/handleDb";
 import {
+  assertFinanceZoneAccess,
+  jsonForbidden,
+} from "../lib/financeZoneAccess";
+import {
   isGameInSeason,
-  parsePayRates,
   resolveAssignmentPay,
   resolveSeasonBounds,
 } from "../lib/payCalculation";
 import { gameMatchesZoneFilter, loadZoneGameFilter } from "../lib/payReportZone";
+import { loadPayRatesForVenueZone, loadWorkspaceDefaultPayRates, loadZonePayRatesRow } from "../lib/zonePayRates";
 import { parseJson } from "../lib/validate";
 import { requirePayrollAccess } from "../middleware/auth";
 import { requireWorkspaceHeader } from "../middleware/workspaceScope";
@@ -16,13 +20,27 @@ import { PayApproveRequestSchema } from "../types";
 const payReportRouter = new Hono();
 payReportRouter.use("*", requireWorkspaceHeader, requirePayrollAccess);
 
+function unwrapVenueZone(
+  venue: { zone_id: string | null } | { zone_id: string | null }[] | null
+): string | null {
+  if (!venue) return null;
+  if (Array.isArray(venue)) return venue[0]?.zone_id ?? null;
+  return venue.zone_id;
+}
+
 // ── GET /api/pay-report ───────────────────────────────────────────────────────
-// Aggregates CONFIRMED assignments per official. Optional ?year=, ?zoneId=, season bounds.
 payReportRouter.get("/", async (c) =>
   runRoute(c, async () => {
     const db = serviceDb();
     const workspaceId = c.get("workspaceId");
-    const zoneId = c.req.query("zoneId")?.trim() || undefined;
+    const scope = c.get("financeZoneScope");
+    const requestedZoneId = c.req.query("zoneId")?.trim() || undefined;
+    const access = assertFinanceZoneAccess(scope, requestedZoneId);
+    if (!access.ok) {
+      return jsonForbidden(c, access.message, access.code);
+    }
+    const zoneId = access.effectiveZoneId ?? undefined;
+
     const season = resolveSeasonBounds({
       season_start: c.req.query("season_start"),
       season_end: c.req.query("season_end"),
@@ -46,21 +64,26 @@ payReportRouter.get("/", async (c) =>
       zoneVenueIds = filter.zoneVenueIds;
     }
 
-    const { data: rateSetting } = await db
-      .from("settings")
-      .select("value")
-      .eq("workspace_id", workspaceId)
-      .eq("key", "pay_rates")
-      .maybeSingle();
+    const payRatesHeader = zoneId
+      ? (await loadZonePayRatesRow(workspaceId, zoneId)).matrix
+      : await loadWorkspaceDefaultPayRates(workspaceId);
 
-    const payRates = parsePayRates(rateSetting?.value);
+    const ratesCache = new Map<string, Awaited<ReturnType<typeof loadPayRatesForVenueZone>>>();
+
+    async function payRatesForGame(venueZoneId: string | null): Promise<typeof payRatesHeader> {
+      const key = venueZoneId ?? "__default__";
+      if (!ratesCache.has(key)) {
+        ratesCache.set(key, await loadPayRatesForVenueZone(workspaceId, venueZoneId));
+      }
+      return ratesCache.get(key)!;
+    }
 
     const { data: rows, error } = await db
       .from("assignments")
       .select(
         "id, game_id, official_id, position, status, payout_approved, " +
-        "game:games(id, date_time, venue_id, home_team, away_team, league_tier, league_type, is_cash_game, venue:venues(name, zone_id)), " +
-        "official:profiles(id, full_name, email, official_type, distance_km)"
+          "game:games(id, date_time, venue_id, home_team, away_team, league_tier, league_type, is_cash_game, venue:venues(name, zone_id)), " +
+          "official:profiles(id, full_name, email, official_type, distance_km)"
       )
       .eq("status", "CONFIRMED")
       .eq("game.workspace_id", workspaceId)
@@ -126,6 +149,7 @@ payReportRouter.get("/", async (c) =>
           rate_label: string | null;
           cash_game: boolean;
           travel_pay_enabled: boolean;
+          rate_zone_id: string | null;
         }>;
       }
     >();
@@ -145,6 +169,9 @@ payReportRouter.get("/", async (c) =>
       ) {
         continue;
       }
+
+      const venueZoneId = unwrapVenueZone(game.venue);
+      const payRates = await payRatesForGame(venueZoneId);
 
       const position = raw.position as "REF1" | "REF2" | "LINE1" | "LINE2" | "SUPERVISOR";
       const gameCtx = {
@@ -195,6 +222,7 @@ payReportRouter.get("/", async (c) =>
         rate_label: pay.rate_label,
         cash_game: pay.cash_game,
         travel_pay_enabled: pay.travel_pay_enabled,
+        rate_zone_id: venueZoneId,
       });
     }
 
@@ -204,10 +232,11 @@ payReportRouter.get("/", async (c) =>
 
     return {
       officials,
-      pay_rates: payRates,
+      pay_rates: payRatesHeader,
       season,
       zone_id: zoneId ?? null,
       zone_name: zoneName,
+      finance_scope: scope?.mode === "all" ? "all" : "zone",
       generated_at: new Date().toISOString(),
     };
   })
@@ -219,19 +248,25 @@ payReportRouter.post("/approve", async (c) =>
     const body = await parseJson(c, PayApproveRequestSchema);
     if (body instanceof Response) return body;
     const workspaceId = c.get("workspaceId");
+    const scope = c.get("financeZoneScope");
+    const access = assertFinanceZoneAccess(scope, body.zone_id);
+    if (!access.ok) {
+      return jsonForbidden(c, access.message, access.code);
+    }
+    const effectiveZoneId = access.effectiveZoneId;
 
     let ids: string[];
-    if (body.zone_id) {
+    if (effectiveZoneId) {
       const { data: zone, error: zoneErr } = await serviceDb()
         .from("zones")
         .select("id")
-        .eq("id", body.zone_id)
+        .eq("id", effectiveZoneId)
         .maybeSingle();
       if (zoneErr) return dbError(c, zoneErr);
       if (!zone) {
         return c.json({ error: { message: "Zone not found", code: "NOT_FOUND" } }, 404);
       }
-      const filter = await loadZoneGameFilter(workspaceId, body.zone_id);
+      const filter = await loadZoneGameFilter(workspaceId, effectiveZoneId);
       ids = Array.from(filter.gameIds);
     } else {
       const { data: gameIds } = await serviceDb()

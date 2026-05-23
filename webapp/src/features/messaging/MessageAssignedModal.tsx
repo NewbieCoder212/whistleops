@@ -27,10 +27,6 @@ interface MessageAssignedModalProps {
   onClose: () => void;
 }
 
-function interpolate(template: string, vars: Record<string, string>): string {
-  return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => vars[key] ?? "");
-}
-
 export function MessageAssignedModal({ game, onClose }: MessageAssignedModalProps) {
   const { t } = useTranslation();
   const [subject, setSubject] = useState("");
@@ -52,9 +48,7 @@ export function MessageAssignedModal({ game, onClose }: MessageAssignedModalProp
     mutationFn: (payload: GameMessageAssigned) =>
       gamesApi.messageAssigned(game!.id, payload),
     onSuccess: (result) => {
-      toast.success(
-        interpolate(t("message.sentSuccess"), { count: String(result.sent_count) })
-      );
+      toast.success(t("message.sentSuccess", { count: result.sent_count }));
       onClose();
     },
     onError: (e: Error) => {

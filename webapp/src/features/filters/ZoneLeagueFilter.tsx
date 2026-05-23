@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import type { Zone } from "@shared/types";
+import { useTranslation } from "@/i18n/I18nProvider";
+import { leagueTypeLabel } from "@/i18n/labels";
 
 export type FilterState = {
   zoneId: string | null;
@@ -23,7 +25,6 @@ interface ZoneLeagueFilterProps {
   value: FilterState;
   onChange: (f: FilterState) => void;
   className?: string;
-  /** Official's home zone — hides zone picker and keeps filter fixed. */
   lockedZoneId?: string | null;
 }
 
@@ -33,6 +34,8 @@ export function ZoneLeagueFilter({
   className,
   lockedZoneId,
 }: ZoneLeagueFilterProps) {
+  const { t } = useTranslation();
+
   const { data: zones = [] } = useQuery<Zone[]>({
     queryKey: ["zones"],
     queryFn: () => api.get<Zone[]>("/api/zones"),
@@ -41,7 +44,7 @@ export function ZoneLeagueFilter({
 
   const lockedZoneName =
     lockedZoneId != null
-      ? zones.find((z) => z.id === lockedZoneId)?.name ?? "Your zone"
+      ? zones.find((z) => z.id === lockedZoneId)?.name ?? t("filters.yourZone")
       : null;
 
   const effectiveZoneId = lockedZoneId ?? value.zoneId;
@@ -69,10 +72,9 @@ export function ZoneLeagueFilter({
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-shrink-0">
         <Filter className="h-3.5 w-3.5" />
-        <span className="font-medium">Filter</span>
+        <span className="font-medium">{t("filters.label")}</span>
       </div>
 
-      {/* Zone: locked for officials with a home zone, otherwise selectable */}
       {lockedZoneId ? (
         <span className="h-8 inline-flex items-center rounded-md border border-border bg-background px-3 text-xs font-medium text-foreground">
           {lockedZoneName}
@@ -83,10 +85,10 @@ export function ZoneLeagueFilter({
           onValueChange={(v) => setZone(v === "all" ? null : v)}
         >
           <SelectTrigger className="h-8 w-auto min-w-[140px] max-w-[220px] text-xs border-border">
-            <SelectValue placeholder="All Zones" />
+            <SelectValue placeholder={t("filters.allZones")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Zones</SelectItem>
+            <SelectItem value="all">{t("filters.allZones")}</SelectItem>
             {zones.map((z) => (
               <SelectItem key={z.id} value={z.id}>
                 {z.name}
@@ -96,7 +98,6 @@ export function ZoneLeagueFilter({
         </Select>
       )}
 
-      {/* League type pills */}
       <div className="flex items-center gap-1.5">
         {LEAGUE_TYPES.map((lt) => {
           const active = value.leagueType === lt;
@@ -111,13 +112,12 @@ export function ZoneLeagueFilter({
                   : "border-border text-muted-foreground hover:text-foreground hover:bg-secondary"
               )}
             >
-              {lt}
+              {leagueTypeLabel(lt, t)}
             </button>
           );
         })}
       </div>
 
-      {/* Clear */}
       {hasFilter ? (
         <Button
           variant="ghost"
@@ -126,7 +126,7 @@ export function ZoneLeagueFilter({
           onClick={clearAll}
         >
           <X className="h-3 w-3" />
-          Clear
+          {t("filters.clear")}
         </Button>
       ) : null}
     </div>

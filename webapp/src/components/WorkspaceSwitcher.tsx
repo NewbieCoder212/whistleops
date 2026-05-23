@@ -10,11 +10,11 @@ import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useTranslation } from "@/i18n/I18nProvider";
 import { useEffect } from "react";
 
-const typeLabels: Record<string, string> = {
-  province: "Province",
-  association: "Association",
-  league: "League",
-  tournament: "Tournament",
+const typeLabelKey: Record<string, string> = {
+  province: "workspace.type.province",
+  association: "workspace.type.association",
+  league: "workspace.type.league",
+  tournament: "workspace.type.tournament",
 };
 
 export function WorkspaceSwitcher({ className }: { className?: string }) {
@@ -55,7 +55,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
             <SelectItem key={w.id} value={w.id} className="text-xs">
               {w.name}
               <span className="text-muted-foreground ml-1">
-                ({typeLabels[w.type] ?? w.type})
+                ({typeLabelKey[w.type] ? t(typeLabelKey[w.type]!) : w.type})
               </span>
             </SelectItem>
           ))}

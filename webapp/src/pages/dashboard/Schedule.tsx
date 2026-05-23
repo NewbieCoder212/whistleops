@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatGameDateShort, formatGameTime, todayYmd } from "@/lib/atlanticTime";
 import { CalendarSubscribeMenu } from "@/features/schedule/CalendarSubscribeMenu";
+import { useTranslation } from "@/i18n/I18nProvider";
 
 type GameSnap = {
   id: string;
@@ -32,11 +33,12 @@ const POSITION_COLORS: Record<string, string> = {
   SUPERVISOR: "bg-purple-500/10 text-purple-600 border-purple-200",
 };
 
-function GameCard({ assignment, onAccept, onDecline, isPending }: {
+function GameCard({ assignment, onAccept, onDecline, isPending, t }: {
   assignment: Assignment;
   onAccept?: () => void;
   onDecline?: () => void;
   isPending?: boolean;
+  t: (key: string, vars?: Record<string, string | number>) => string;
 }) {
   const game = assignment.game;
   if (!game) return null;
@@ -52,10 +54,10 @@ function GameCard({ assignment, onAccept, onDecline, isPending }: {
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold leading-tight">
-              {game.home_team ?? "TBD"}
+              {game.home_team ?? t("common.tbd")}
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              vs {game.away_team ?? "TBD"}
+              {t("common.vs")} {game.away_team ?? t("common.tbd")}
             </p>
           </div>
           <span className={cn(
@@ -92,7 +94,7 @@ function GameCard({ assignment, onAccept, onDecline, isPending }: {
             disabled={isPending}
           >
             <X className="h-4 w-4" />
-            Decline
+            {t("dashboardSchedule.decline")}
           </Button>
           <Button
             variant="ghost"
@@ -102,7 +104,7 @@ function GameCard({ assignment, onAccept, onDecline, isPending }: {
             disabled={isPending}
           >
             <Check className="h-4 w-4" />
-            Accept
+            {t("dashboardSchedule.accept")}
           </Button>
         </div>
       ) : null}
@@ -111,6 +113,7 @@ function GameCard({ assignment, onAccept, onDecline, isPending }: {
 }
 
 export default function OfficialSchedule() {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [showPast, setShowPast] = useState(false);
 
@@ -160,8 +163,8 @@ export default function OfficialSchedule() {
       <div className="space-y-8">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold">My Schedule</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Your game assignments.</p>
+            <h1 className="text-xl font-bold">{t("dashboardSchedule.title")}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">{t("dashboardSchedule.subtitle")}</p>
           </div>
           <CalendarSubscribeMenu />
         </div>
@@ -170,7 +173,7 @@ export default function OfficialSchedule() {
         {pending.length > 0 ? (
           <section className="space-y-3">
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold">Action Required</h2>
+              <h2 className="text-sm font-semibold">{t("dashboardSchedule.actionRequired")}</h2>
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/15 text-[11px] font-bold text-amber-600">
                 {pending.length}
               </span>
@@ -179,6 +182,7 @@ export default function OfficialSchedule() {
               <GameCard
                 key={a.id}
                 assignment={a}
+                t={t}
                 onAccept={() => mutation.mutate({ id: a.id, status: "CONFIRMED" })}
                 onDecline={() => mutation.mutate({ id: a.id, status: "REJECTED" })}
                 isPending={mutation.isPending}
@@ -189,16 +193,16 @@ export default function OfficialSchedule() {
 
         {/* Upcoming confirmed */}
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold">Upcoming</h2>
+          <h2 className="text-sm font-semibold">{t("dashboardSchedule.upcoming")}</h2>
           {confirmed.length === 0 ? (
             <div className="rounded-xl border border-border bg-muted/30 px-5 py-8 text-center space-y-2">
               <CalendarDays className="h-8 w-8 mx-auto text-muted-foreground/40" />
-              <p className="text-sm text-muted-foreground">No upcoming confirmed games.</p>
+              <p className="text-sm text-muted-foreground">{t("dashboardSchedule.noUpcoming")}</p>
             </div>
           ) : (
             <div className="space-y-2.5">
               {confirmed.map((a) => (
-                <GameCard key={a.id} assignment={a} />
+                <GameCard key={a.id} assignment={a} t={t} />
               ))}
             </div>
           )}
@@ -212,12 +216,12 @@ export default function OfficialSchedule() {
               className="flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
             >
               {showPast ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              Past Games ({past.length})
+              {t("dashboardSchedule.pastGames", { count: past.length })}
             </button>
             {showPast ? (
               <div className="space-y-2.5 opacity-60">
                 {past.slice(0, 10).map((a) => (
-                  <GameCard key={a.id} assignment={a} />
+                  <GameCard key={a.id} assignment={a} t={t} />
                 ))}
               </div>
             ) : null}

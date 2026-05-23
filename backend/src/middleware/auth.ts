@@ -17,12 +17,18 @@ import {
   resolveProfileId,
   workspaceIdFromRequest,
 } from "../lib/workspace";
+import {
+  resolveFinanceZoneScope,
+  type FinanceZoneScope,
+} from "../lib/financeZoneAccess";
 
 type AuthVars = {
   userId: string;
   userEmail: string;
   profileId?: string;
   profileRole?: string;
+  profileZoneId?: string | null;
+  financeZoneScope?: FinanceZoneScope;
   workspaceId: string;
   workspaceRole?: string;
 };
@@ -162,7 +168,7 @@ async function loadWorkspaceContext(c: Context): Promise<Response | undefined> {
     const membership = await getWorkspaceMembership(workspaceId, profileId);
     const { data: profile } = await serviceDb()
       .from("profiles")
-      .select("role")
+      .select("role, zone_id")
       .eq("id", profileId)
       .maybeSingle();
 
@@ -177,6 +183,7 @@ async function loadWorkspaceContext(c: Context): Promise<Response | undefined> {
     c.set("workspaceId", workspaceId);
     c.set("workspaceRole", membership?.role ?? profile?.role ?? "OFFICIAL");
     if (profile?.role) c.set("profileRole", profile.role);
+    c.set("profileZoneId", profile?.zone_id ?? null);
     return undefined;
   } catch (e) {
     if (e instanceof SupabaseNotConfiguredError) {
@@ -217,12 +224,29 @@ export const requirePayrollAccess: MiddlewareHandler = async (c, next) => {
 
   const profileRole = c.get("profileRole");
   const workspaceRole = c.get("workspaceRole");
-  if (canAccessPayroll(profileRole, workspaceRole)) {
-    await next();
-    return;
+  const profileZoneId = c.get("profileZoneId");
+
+  if (!canAccessPayroll(profileRole, workspaceRole)) {
+    return c.json(
+      { error: { message: "Payroll access required", code: "FORBIDDEN" } },
+      403
+    );
   }
-  return c.json(
-    { error: { message: "Payroll access required", code: "FORBIDDEN" } },
-    403
-  );
+
+  const scope = resolveFinanceZoneScope(profileRole, workspaceRole, profileZoneId);
+  if (!scope) {
+    return c.json(
+      {
+        error: {
+          message:
+            "Payroll access requires a home zone on your profile. Ask an admin to set your zone.",
+          code: "ZONE_REQUIRED",
+        },
+      },
+      403
+    );
+  }
+
+  c.set("financeZoneScope", scope);
+  await next();
 };

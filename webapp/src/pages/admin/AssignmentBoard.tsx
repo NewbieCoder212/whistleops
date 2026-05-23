@@ -14,9 +14,10 @@ import {
   resolveDefaultZoneId,
   saveZonePreference,
   todayIso,
-  zoneSelectLabel,
 } from "@/features/filters/scheduleFilterUtils";
 import { LEAGUE_TYPES } from "@/features/filters/ZoneLeagueFilter";
+import { useTranslation } from "@/i18n/I18nProvider";
+import { leagueTypeLabel, zoneSelectLabel } from "@/i18n/labels";
 import { RinkFilter } from "@/features/filters/RinkFilter";
 import { isRinkFilterActive, venuesInZone } from "@/features/filters/rinkFilterUtils";
 import { useAuth } from "@/hooks/useAuth";
@@ -36,6 +37,7 @@ import { assignBoardApi, venuesApi } from "@/lib/resources";
 import type { Position, Zone } from "@shared/types";
 
 export default function AssignmentBoardPage() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { data: profile } = useProfile();
   const qc = useQueryClient();
@@ -144,15 +146,14 @@ export default function AssignmentBoardPage() {
           <div>
             <h1 className="text-xl font-semibold tracking-tight flex items-center gap-2">
               <LayoutGrid className="h-5 w-5 text-primary" />
-              Assignment Board
+              {t("assignmentBoard.title")}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Assign crew for one day using availability and open-slot hints. You can switch to any
-              zone; your profile home zone is selected by default.{" "}
+              {t("assignmentBoard.descriptionIntro")}{" "}
               <Link to="/admin/schedule" className="text-primary hover:underline">
-                Schedule
+                {t("nav.schedule")}
               </Link>{" "}
-              is for the week view — add games, message crew, and incidents.
+              {t("assignmentBoard.descriptionScheduleSuffix")}
             </p>
           </div>
         </div>
@@ -185,12 +186,12 @@ export default function AssignmentBoardPage() {
 
           <Select value={zoneId ?? ""} onValueChange={handleZoneChange}>
             <SelectTrigger className="h-8 min-w-[180px] text-xs">
-              <SelectValue placeholder="Select zone" />
+              <SelectValue placeholder={t("assignmentBoard.selectZone")} />
             </SelectTrigger>
             <SelectContent>
               {zones.map((z) => (
                 <SelectItem key={z.id} value={z.id}>
-                  {zoneSelectLabel(z.name, z.id, profile?.zone_id)}
+                  {zoneSelectLabel(z.name, z.id, profile?.zone_id, t)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -209,7 +210,7 @@ export default function AssignmentBoardPage() {
                     : "border-border text-muted-foreground hover:bg-secondary"
                 )}
               >
-                {lt}
+                {leagueTypeLabel(lt, t)}
               </button>
             ))}
           </div>
@@ -228,7 +229,10 @@ export default function AssignmentBoardPage() {
         {zoneId && isRinkFilterActive(venueIds, rinksInZoneCount) ? (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
             <span>
-              Showing {venueIds!.length} of {rinksInZoneCount} rinks in this zone.
+              {t("assignmentBoard.rinksShowing", {
+                shown: venueIds!.length,
+                total: rinksInZoneCount,
+              })}
             </span>
             <Button
               type="button"
@@ -237,7 +241,7 @@ export default function AssignmentBoardPage() {
               className="h-7 text-xs"
               onClick={() => setVenueIds(null)}
             >
-              Show all rinks
+              {t("assignmentBoard.showAllRinks")}
             </Button>
           </div>
         ) : null}

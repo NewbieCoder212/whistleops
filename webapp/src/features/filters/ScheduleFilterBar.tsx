@@ -14,13 +14,14 @@ import { Input } from "@/components/ui/input";
 import type { Zone, Venue } from "@shared/types";
 import { RinkFilter } from "./RinkFilter";
 import { venuesApi } from "@/lib/resources";
+import { useTranslation } from "@/i18n/I18nProvider";
+import { leagueTypeLabel, zoneSelectLabel } from "@/i18n/labels";
 import {
   type ScheduleFilterState,
   todayIso,
   addDaysIso,
   startOfWeekIso,
   endOfWeekIso,
-  zoneSelectLabel,
 } from "./scheduleFilterUtils";
 
 export type { ScheduleFilterState } from "./scheduleFilterUtils";
@@ -31,11 +32,8 @@ export const LEAGUE_TYPES = ["Minor", "Senior", "Adult Rec"] as const;
 interface ScheduleFilterBarProps {
   value: ScheduleFilterState;
   onChange: (f: ScheduleFilterState) => void;
-  /** Games in the current filtered date range (for rink counts). */
   scheduleGames?: { venue_id: string | null; venue?: { id?: string } | null }[];
-  /** Opens Assignment Board for a single day (e.g. Today). */
   onOpenAssignmentBoard?: (date: string) => void;
-  /** Logged-in user's home zone (for assignor default label). */
   homeZoneId?: string | null;
   className?: string;
 }
@@ -48,6 +46,8 @@ export function ScheduleFilterBar({
   homeZoneId,
   className,
 }: ScheduleFilterBarProps) {
+  const { t } = useTranslation();
+
   const { data: zones = [] } = useQuery<Zone[]>({
     queryKey: ["zones"],
     queryFn: () => api.get<Zone[]>("/api/zones"),
@@ -89,12 +89,12 @@ export function ScheduleFilterBar({
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-shrink-0 pb-2">
           <Filter className="h-3.5 w-3.5" />
-          <span className="font-medium">Filter</span>
+          <span className="font-medium">{t("filters.label")}</span>
         </div>
 
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-            From
+            {t("filters.from")}
           </label>
           <Input
             type="date"
@@ -107,7 +107,7 @@ export function ScheduleFilterBar({
 
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-            To
+            {t("filters.to")}
           </label>
           <Input
             type="date"
@@ -120,7 +120,7 @@ export function ScheduleFilterBar({
 
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-            Zone
+            {t("filters.zone")}
           </label>
           <Select
             value={value.zoneId ?? "all"}
@@ -129,13 +129,13 @@ export function ScheduleFilterBar({
             }
           >
             <SelectTrigger className="h-8 w-auto min-w-[160px] max-w-[240px] text-xs border-border">
-              <SelectValue placeholder="All Zones" />
+              <SelectValue placeholder={t("filters.allZones")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Zones</SelectItem>
+              <SelectItem value="all">{t("filters.allZones")}</SelectItem>
               {zones.map((z) => (
                 <SelectItem key={z.id} value={z.id}>
-                  {zoneSelectLabel(z.name, z.id, homeZoneId)}
+                  {zoneSelectLabel(z.name, z.id, homeZoneId, t)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -157,7 +157,7 @@ export function ScheduleFilterBar({
                     : "border-border text-muted-foreground hover:text-foreground hover:bg-secondary"
                 )}
               >
-                {lt}
+                {leagueTypeLabel(lt, t)}
               </button>
             );
           })}
@@ -186,7 +186,7 @@ export function ScheduleFilterBar({
             className="h-7 text-xs"
             onClick={() => onOpenAssignmentBoard(todayIso())}
           >
-            Assign today
+            {t("schedule.assignToday")}
           </Button>
         ) : null}
         <Button
@@ -195,11 +195,11 @@ export function ScheduleFilterBar({
           size="sm"
           className="h-7 text-xs"
           onClick={() => {
-            const t = todayIso();
-            patch({ dateFrom: startOfWeekIso(t), dateTo: endOfWeekIso(t) });
+            const today = todayIso();
+            patch({ dateFrom: startOfWeekIso(today), dateTo: endOfWeekIso(today) });
           }}
         >
-          This week
+          {t("schedule.thisWeek")}
         </Button>
         <Button
           type="button"
@@ -208,7 +208,7 @@ export function ScheduleFilterBar({
           className="h-7 text-xs"
           onClick={() => patch({ unassignedOnly: !value.unassignedOnly })}
         >
-          Unassigned only
+          {t("schedule.unassignedOnly")}
         </Button>
         <Button
           type="button"
@@ -217,7 +217,7 @@ export function ScheduleFilterBar({
           className="h-7 text-xs"
           onClick={() => patch({ declinedOnly: !value.declinedOnly })}
         >
-          Declined only
+          {t("schedule.declinedOnly")}
         </Button>
         {hasFilter ? (
           <Button
@@ -228,7 +228,7 @@ export function ScheduleFilterBar({
             onClick={clearAll}
           >
             <X className="h-3 w-3" />
-            Clear filters
+            {t("filters.clearFilters")}
           </Button>
         ) : null}
       </div>

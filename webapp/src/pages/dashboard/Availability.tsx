@@ -4,6 +4,7 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { AvailabilityCalendar } from "@/features/availability/AvailabilityCalendar";
 import { ZoneLeagueFilter, type FilterState } from "@/features/filters/ZoneLeagueFilter";
 import { useProfile } from "@/hooks/useProfile";
+import { useTranslation } from "@/i18n/I18nProvider";
 import { api } from "@/lib/api";
 import type { Zone } from "@shared/types";
 
@@ -24,6 +25,7 @@ function useLockedHomeZoneId(): string | null {
 }
 
 export default function Availability() {
+  const { t } = useTranslation();
   const lockedZoneId = useLockedHomeZoneId();
   const [filters, setFilters] = useState<FilterState>({ zoneId: null, leagueType: null });
   const [weekStart, setWeekStart] = useState<string | null>(null);
@@ -76,11 +78,11 @@ export default function Availability() {
     <DashboardLayout>
       <div className="space-y-5">
         <div>
-          <h1 className="text-xl font-semibold">My Availability</h1>
+          <h1 className="text-xl font-semibold">{t("dashboardAvailability.title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {lockedZoneName
-              ? `Check the hours you're free each day. Game counts show scheduled games in ${lockedZoneName}. Use the date controls to move one day at a time.`
-              : "Check the hours you're free each day. Game counts show where you're needed. Use the date controls to move one day at a time."}
+              ? t("dashboardAvailability.descriptionWithZone", { zone: lockedZoneName })
+              : t("dashboardAvailability.description")}
           </p>
         </div>
 

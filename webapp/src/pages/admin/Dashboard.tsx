@@ -1,17 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
-import { CalendarDays, Users, AlertCircle, CheckCircle2, ArrowRight } from "lucide-react";
+import { CalendarDays, Users, AlertCircle, CheckCircle2, ArrowRight, MapPin } from "lucide-react";
 import { Link } from "react-router-dom";
 import { AdminLayout } from "@/components/layout/AdminLayout";
+import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
+import { zonesApi } from "@/lib/resources";
 import { useProfile } from "@/hooks/useProfile";
 import { canAccessPayroll } from "@/lib/payrollAccess";
+import { useTranslation } from "@/i18n/I18nProvider";
+import { gameStatusLabel } from "@/i18n/labels";
 import {
   addDaysYmd,
   formatGameTime,
   toDateKeyFromIso,
   todayYmd,
 } from "@/lib/atlanticTime";
-import type { Profile } from "@shared/types";
+import type { Profile, Zone } from "@shared/types";
 
 type GameRow = {
   id: string;
@@ -50,10 +54,10 @@ function StatCard({
 }
 
 export default function AdminDashboard() {
+  const { t } = useTranslation();
   const { data: profile } = useProfile();
 
   const today = todayYmd();
-  const nextMonth = addDaysYmd(today, 30);
 
   const { data: upcomingGames = [] } = useQuery<GameRow[]>({
     queryKey: ["games", "upcoming-dashboard"],
@@ -63,6 +67,12 @@ export default function AdminDashboard() {
   const { data: profiles = [] } = useQuery<Profile[]>({
     queryKey: ["profiles"],
     queryFn: () => api.get<Profile[]>("/api/profiles"),
+  });
+
+  const { data: zones = [] } = useQuery<Zone[]>({
+    queryKey: ["zones"],
+    queryFn: () => zonesApi.list(),
+    staleTime: 10 * 60 * 1000,
   });
 
   const unassigned = upcomingGames.filter((g) => g.status === "UNASSIGNED").length;
@@ -76,55 +86,82 @@ export default function AdminDashboard() {
     (g) => toDateKeyFromIso(g.date_time) === today
   );
 
-  const greeting = profile?.full_name ? `Welcome back, ${profile.full_name.split(" ")[0]}.` : "Welcome back.";
+  const firstName = profile?.full_name?.trim().split(/\s+/)[0];
+  const homeZone = profile?.zone_id
+    ? zones.find((z) => z.id === profile.zone_id) ?? null
+    : null;
+
+  const subtitle = homeZone
+    ? t("adminDashboard.subtitleZone", { zone: homeZone.name })
+    : profile?.role === "ADMIN"
+      ? t("adminDashboard.subtitleAdmin")
+      : t("adminDashboard.subtitleDefault");
 
   const quickLinks = [
-    { label: "Game Schedule", desc: "Assign officials to upcoming games", href: "/admin/schedule" },
+    {
+      label: t("adminDashboard.quickLinks.schedule.label"),
+      desc: t("adminDashboard.quickLinks.schedule.desc"),
+      href: "/admin/schedule",
+    },
     ...(canAccessPayroll(profile?.role)
       ? [
           {
-            label: "Finance & Payroll",
-            desc: "Review and approve payouts",
+            label: t("adminDashboard.quickLinks.finance.label"),
+            desc: t("adminDashboard.quickLinks.finance.desc"),
             href: "/admin/finance",
           },
         ]
       : []),
-    { label: "Import Games", desc: "Bulk upload from CSV", href: "/admin/import-games" },
+    {
+      label: t("adminDashboard.quickLinks.import.label"),
+      desc: t("adminDashboard.quickLinks.import.desc"),
+      href: "/admin/import-games",
+    },
   ];
 
   return (
     <AdminLayout>
       <div className="space-y-8 max-w-4xl">
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold">{greeting}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Here's what's happening with the league.</p>
+        <div className="rounded-xl border border-border bg-gradient-to-br from-card via-card to-muted/30 px-6 py-5">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <h1 className="text-2xl font-bold tracking-tight">
+              {firstName
+                ? t("adminDashboard.welcomeNamed", { name: firstName })
+                : t("adminDashboard.welcome")}
+            </h1>
+            {homeZone ? (
+              <Badge variant="secondary" className="gap-1.5 px-2.5 py-1 font-normal text-xs">
+                <MapPin className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                {homeZone.name}
+              </Badge>
+            ) : null}
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground max-w-xl">{subtitle}</p>
         </div>
 
-        {/* Stat grid */}
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <StatCard
-            label="Upcoming Games"
+            label={t("adminDashboard.stats.upcomingGames")}
             value={upcomingGames.length}
             icon={CalendarDays}
             accent="bg-blue-500/10 text-blue-500"
             href="/admin/schedule"
           />
           <StatCard
-            label="Need Assignment"
+            label={t("adminDashboard.stats.needAssignment")}
             value={unassigned}
             icon={AlertCircle}
             accent={unassigned > 0 ? "bg-amber-500/10 text-amber-500" : "bg-muted text-muted-foreground"}
             href="/admin/schedule"
           />
           <StatCard
-            label="Confirmed Slots"
+            label={t("adminDashboard.stats.confirmedSlots")}
             value={confirmedCount}
             icon={CheckCircle2}
             accent="bg-green-500/10 text-green-500"
           />
           <StatCard
-            label="Officials"
+            label={t("adminDashboard.stats.officials")}
             value={officialsCount}
             icon={Users}
             accent="bg-purple-500/10 text-purple-500"
@@ -132,21 +169,20 @@ export default function AdminDashboard() {
           />
         </div>
 
-        {/* Today's games */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Today's Games</h2>
+            <h2 className="text-sm font-semibold">{t("adminDashboard.todayGames")}</h2>
             <Link
               to="/admin/schedule"
               className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
-              View all <ArrowRight className="h-3 w-3" />
+              {t("adminDashboard.viewAll")} <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
 
           {todayGames.length === 0 ? (
             <div className="rounded-xl border border-border bg-muted/30 px-5 py-8 text-center">
-              <p className="text-sm text-muted-foreground">No games scheduled for today.</p>
+              <p className="text-sm text-muted-foreground">{t("adminDashboard.noGamesToday")}</p>
             </div>
           ) : (
             <div className="divide-y divide-border rounded-xl border border-border overflow-hidden">
@@ -157,7 +193,9 @@ export default function AdminDashboard() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">
-                      {game.home_team ?? "TBD"} <span className="text-muted-foreground font-normal">vs</span> {game.away_team ?? "TBD"}
+                      {game.home_team ?? t("common.tbd")}{" "}
+                      <span className="text-muted-foreground font-normal">{t("common.vs")}</span>{" "}
+                      {game.away_team ?? t("common.tbd")}
                     </p>
                   </div>
                   <span
@@ -169,7 +207,7 @@ export default function AdminDashboard() {
                         : "bg-green-500/10 text-green-600"
                     }`}
                   >
-                    {game.status}
+                    {gameStatusLabel(game.status, t)}
                   </span>
                 </div>
               ))}
@@ -177,7 +215,6 @@ export default function AdminDashboard() {
           )}
         </div>
 
-        {/* Quick links */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {quickLinks.map((item) => (
             <Link

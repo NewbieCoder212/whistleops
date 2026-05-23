@@ -9,6 +9,7 @@ import {
 } from "react";
 import { en, type Messages } from "./locales/en";
 import { fr } from "./locales/fr";
+import { interpolate } from "./interpolate";
 
 export type Locale = "en" | "fr";
 
@@ -19,7 +20,7 @@ const catalogs: Record<Locale, Messages> = { en, fr };
 type I18nContextValue = {
   locale: Locale;
   setLocale: (locale: Locale) => void;
-  t: (key: string) => string;
+  t: (key: string, vars?: Record<string, string | number>) => string;
 };
 
 const I18nContext = createContext<I18nContextValue | null>(null);
@@ -61,7 +62,10 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const t = useCallback(
-    (key: string) => resolveKey(catalogs[locale], key),
+    (key: string, vars?: Record<string, string | number>) => {
+      const raw = resolveKey(catalogs[locale], key);
+      return vars ? interpolate(raw, vars) : raw;
+    },
     [locale]
   );
 

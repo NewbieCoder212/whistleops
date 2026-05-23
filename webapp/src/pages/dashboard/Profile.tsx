@@ -3,6 +3,7 @@ import { User, Phone, Mail, Hash, MapPin, Award, DollarSign, TrendingUp } from "
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { api } from "@/lib/api";
 import { useProfile } from "@/hooks/useProfile";
+import { useTranslation } from "@/i18n/I18nProvider";
 import type { EarningsSummary } from "@shared/types";
 
 type CertLevel = { id: string; name: string };
@@ -37,6 +38,7 @@ function StatTile({ label, value, sub }: { label: string; value: string; sub?: s
 }
 
 export default function OfficialProfile() {
+  const { t } = useTranslation();
   const { data: profile, isLoading } = useProfile();
 
   const { data: earnings } = useQuery<EarningsSummary>({
@@ -80,7 +82,9 @@ export default function OfficialProfile() {
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               {profile?.official_type ? (
                 <span className="text-xs font-medium bg-blue-500/10 text-blue-600 px-2 py-0.5 rounded-full">
-                  {profile.official_type === "REFEREE" ? "Referee" : "Linesman"}
+                  {profile.official_type === "REFEREE"
+                    ? t("profile.officialType.referee")
+                    : t("profile.officialType.linesman")}
                 </span>
               ) : null}
               {certLevel ? (
@@ -96,13 +100,15 @@ export default function OfficialProfile() {
         {/* Contact info */}
         <div className="rounded-xl border border-border bg-card divide-y divide-border overflow-hidden">
           <div className="px-4 py-3 bg-muted/30">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Contact</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {t("profile.contactSection")}
+            </p>
           </div>
           <div className="px-4">
-            <InfoRow icon={Mail} label="Email" value={profile?.email} />
-            <InfoRow icon={Phone} label="Phone" value={profile?.cell_phone} />
-            <InfoRow icon={Hash} label="Jersey #" value={profile?.jersey_number} />
-            <InfoRow icon={MapPin} label="Home address" value={profile?.home_address} />
+            <InfoRow icon={Mail} label={t("profile.fields.email")} value={profile?.email} />
+            <InfoRow icon={Phone} label={t("profile.fields.phone")} value={profile?.cell_phone} />
+            <InfoRow icon={Hash} label={t("profile.fields.jersey")} value={profile?.jersey_number} />
+            <InfoRow icon={MapPin} label={t("profile.fields.homeAddress")} value={profile?.home_address} />
           </div>
         </div>
 
@@ -111,7 +117,7 @@ export default function OfficialProfile() {
           <div className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
             <h2 className="text-sm font-semibold">
-              Season Earnings
+              {t("profile.earnings.title")}
               {earnings?.season ? (
                 <span className="ml-2 text-xs font-normal text-muted-foreground">
                   {earnings.season.label}
@@ -124,37 +130,48 @@ export default function OfficialProfile() {
             <>
               <div className="grid grid-cols-2 gap-3">
                 <StatTile
-                  label="Games"
+                  label={t("profile.earnings.stats.games")}
                   value={String(earnings.assignment_count)}
-                  sub="confirmed total"
+                  sub={t("profile.earnings.stats.confirmedTotal")}
                 />
                 <StatTile
-                  label="Game Fees"
+                  label={t("profile.earnings.stats.gameFees")}
                   value={fmt(earnings.game_fees)}
-                  sub="before mileage"
+                  sub={t("profile.earnings.stats.beforeMileage")}
                 />
                 <StatTile
-                  label="Mileage"
+                  label={t("profile.earnings.stats.mileage")}
                   value={fmt(earnings.mileage_payout)}
-                  sub={`${earnings.mileage_km.toFixed(0)} km total`}
+                  sub={t("profile.earnings.stats.kmTotal", {
+                    count: Math.round(earnings.mileage_km),
+                  })}
                 />
                 <StatTile
-                  label="Total Due"
+                  label={t("profile.earnings.stats.totalDue")}
                   value={fmt(earnings.total_due)}
-                  sub={earnings.approved_count > 0 ? `${earnings.approved_count} approved` : "pending approval"}
+                  sub={
+                    earnings.approved_count > 0
+                      ? t("profile.earnings.approvalStatus.approved", {
+                          count: earnings.approved_count,
+                        })
+                      : t("profile.earnings.approvalStatus.pending")
+                  }
                 />
               </div>
 
               {earnings.distance_km > 0 ? (
                 <p className="text-xs text-muted-foreground text-center">
-                  Based on {earnings.distance_km} km from home · {fmt(earnings.cost_per_km)}/km
+                  {t("profile.earnings.distanceNote", {
+                    km: earnings.distance_km,
+                    rate: fmt(earnings.cost_per_km),
+                  })}
                 </p>
               ) : null}
             </>
           ) : (
             <div className="rounded-xl border border-border bg-muted/30 px-5 py-6 text-center">
               <DollarSign className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
-              <p className="text-sm text-muted-foreground">No earnings to display yet.</p>
+              <p className="text-sm text-muted-foreground">{t("profile.earnings.empty")}</p>
             </div>
           )}
         </div>

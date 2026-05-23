@@ -1,22 +1,7 @@
 import type { AssignmentStatus } from "@shared/types";
 import { cn } from "@/lib/utils";
-
-export const ASSIGNMENT_STATUS_LABELS: Record<AssignmentStatus, string> = {
-  DRAFT: "Draft",
-  PENDING: "Pending",
-  CONFIRMED: "Confirmed",
-  REJECTED: "Declined",
-  CANCELLED: "Cancelled",
-};
-
-/** Compact label for tight slots (board table). */
-export const ASSIGNMENT_STATUS_SHORT: Record<AssignmentStatus, string> = {
-  DRAFT: "Draft",
-  PENDING: "Pending",
-  CONFIRMED: "OK",
-  REJECTED: "No",
-  CANCELLED: "Off",
-};
+import { useTranslation } from "@/i18n/I18nProvider";
+import { assignmentStatusLabel } from "@/i18n/labels";
 
 export function filledSlotSurfaceClass(status: AssignmentStatus): string {
   switch (status) {
@@ -61,7 +46,8 @@ export function AssignmentStatusBadge({
   compact?: boolean;
   className?: string;
 }) {
-  const label = compact ? ASSIGNMENT_STATUS_SHORT[status] : ASSIGNMENT_STATUS_LABELS[status];
+  const { t } = useTranslation();
+  const label = assignmentStatusLabel(status, t, compact);
   return (
     <span
       className={cn(

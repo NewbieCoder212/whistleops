@@ -2,9 +2,10 @@ import { Hono } from "hono";
 import { serviceDb } from "../db";
 import { dbError, runRoute } from "../lib/handleDb";
 import { parseJson } from "../lib/validate";
+import { runBulkVenueImport } from "../lib/venueImport";
 import { requireWorkspaceStaff } from "../middleware/auth";
 import { requireWorkspaceHeader } from "../middleware/workspaceScope";
-import { VenueCreateSchema, VenueUpdateSchema } from "../types";
+import { BulkVenueImportPayloadSchema, VenueCreateSchema, VenueUpdateSchema } from "../types";
 
 const venuesRouter = new Hono();
 venuesRouter.use("*", requireWorkspaceHeader);
@@ -49,6 +50,17 @@ venuesRouter.post("/", requireWorkspaceStaff, async (c) =>
       .single();
     if (error) return dbError(c, error);
     return data;
+  })
+);
+
+venuesRouter.post("/bulk", requireWorkspaceStaff, async (c) =>
+  runRoute(c, async () => {
+    const body = await parseJson(c, BulkVenueImportPayloadSchema);
+    if (body instanceof Response) return body;
+    const workspaceId = c.get("workspaceId");
+    return runBulkVenueImport(serviceDb(), workspaceId, body.rows, {
+      updateExisting: body.update_existing,
+    });
   })
 );
 

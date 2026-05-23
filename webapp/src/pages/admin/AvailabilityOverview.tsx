@@ -24,8 +24,9 @@ import { formatHourLabel } from "@/features/assignBoard/assignBoardUtils";
 import {
   resolveDefaultZoneId,
   saveZonePreference,
-  zoneSelectLabel,
 } from "@/features/filters/scheduleFilterUtils";
+import { useTranslation } from "@/i18n/I18nProvider";
+import { zoneSelectLabel } from "@/i18n/labels";
 import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
@@ -44,6 +45,7 @@ import {
 import type { Zone } from "@shared/types";
 
 export default function AvailabilityOverview() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { data: profile } = useProfile();
   const zoneInitialized = useRef(false);
@@ -153,12 +155,9 @@ export default function AvailabilityOverview() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight flex items-center gap-2">
             <CalendarDays className="h-5 w-5 text-primary" />
-            Availability overview
+            {t("availabilityOverview.title")}
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Day matrix shows every official at once for staffing. Arrows move one day; data loads by
-            calendar week (Mon–Sun).
-          </p>
+          <p className="text-sm text-muted-foreground mt-1">{t("availabilityOverview.description")}</p>
         </div>
 
         <div className="flex flex-wrap items-start gap-4 rounded-lg border border-border bg-muted/30 px-4 py-3">
@@ -171,17 +170,17 @@ export default function AvailabilityOverview() {
           />
           <div className="flex flex-col gap-1">
             <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-              Zone
+              {t("filters.zone")}
             </span>
             <Select value={zoneId ?? "all"} onValueChange={handleZoneChange}>
               <SelectTrigger className="h-8 min-w-[160px] text-xs">
-                <SelectValue placeholder="All zones" />
+                <SelectValue placeholder={t("filters.allZonesLower")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All zones</SelectItem>
+                <SelectItem value="all">{t("filters.allZonesLower")}</SelectItem>
                 {zones.map((z) => (
                   <SelectItem key={z.id} value={z.id}>
-                    {zoneSelectLabel(z.name, z.id, profile?.zone_id)}
+                    {zoneSelectLabel(z.name, z.id, profile?.zone_id, t)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -193,38 +192,38 @@ export default function AvailabilityOverview() {
         {!isLoading && !isError && officials.length > 0 ? (
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground rounded-lg border border-border bg-card px-4 py-2.5">
             <span>
-              <span className="font-semibold text-foreground tabular-nums">{summary.total}</span>{" "}
-              officials
+              {t("availabilityOverview.officialCount", { count: summary.total })}
               {zoneId && zoneMap[zoneId] ? ` · ${zoneMap[zoneId]}` : ""}
             </span>
             <span>
-              <span className="font-semibold text-foreground tabular-nums">{summary.submitted}</span>{" "}
-              submitted for {formatDayLabel(focusDate).split(",")[0]}
+              {t("availabilityOverview.submittedFor", {
+                count: summary.submitted,
+                day: formatDayLabel(focusDate).split(",")[0] ?? "",
+              })}
             </span>
             <span>
-              <span className="font-semibold text-foreground tabular-nums">{summary.totalHours}</span>{" "}
-              available hours total
+              {t("availabilityOverview.availableHours", { count: summary.totalHours })}
             </span>
             {highlightHour != null ? (
               <span>
-                <span className="font-semibold text-emerald-700 dark:text-emerald-400 tabular-nums">
-                  {summary.availableAtHour}
-                </span>{" "}
-                available at {formatHourLabel(highlightHour)}
+                {t("availabilityOverview.availableAtHour", {
+                  count: summary.availableAtHour,
+                  hour: formatHourLabel(highlightHour),
+                })}
               </span>
             ) : (
-              <span className="italic">Click an hour column header to filter</span>
+              <span className="italic">{t("availabilityOverview.clickHourHint")}</span>
             )}
           </div>
         ) : null}
 
         {isLoading ? (
-          <p className="text-sm text-muted-foreground py-12 text-center">Loading availability…</p>
+          <p className="text-sm text-muted-foreground py-12 text-center">{t("availabilityOverview.loading")}</p>
         ) : isError ? (
-          <p className="text-sm text-destructive py-12 text-center">Could not load availability.</p>
+          <p className="text-sm text-destructive py-12 text-center">{t("availabilityOverview.loadError")}</p>
         ) : officials.length === 0 ? (
           <p className="text-sm text-muted-foreground py-12 text-center rounded-xl border border-dashed border-border">
-            No officials in this zone for the selected week.
+            {t("availabilityOverview.empty")}
           </p>
         ) : (
           <AvailabilityDayMatrix
@@ -247,9 +246,11 @@ export default function AvailabilityOverview() {
           <Collapsible open={weekDetailOpen} onOpenChange={setWeekDetailOpen}>
             <CollapsibleTrigger className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground w-full rounded-lg border border-border px-4 py-2.5 bg-muted/20">
               <User className="h-3.5 w-3.5" />
-              Week view — {selected.full_name ?? selected.email}
+              {t("availabilityOverview.weekView", {
+                name: selected.full_name ?? selected.email ?? "",
+              })}
               <span className="ml-auto text-[10px] font-normal normal-case">
-                {weekDetailOpen ? "Collapse" : "Expand"}
+                {weekDetailOpen ? t("common.collapse") : t("common.expand")}
               </span>
             </CollapsibleTrigger>
             <CollapsibleContent className="pt-3">
@@ -264,7 +265,7 @@ export default function AvailabilityOverview() {
                   }
                   focusDate={focusDate}
                   readOnly
-                  footerNote="Full week for this official. Red hours are game assignments (read-only)."
+                  footerNote={t("availabilityOverview.weekFooterNote")}
                 />
               </div>
             </CollapsibleContent>

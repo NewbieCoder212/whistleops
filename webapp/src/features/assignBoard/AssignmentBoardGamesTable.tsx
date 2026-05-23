@@ -12,9 +12,10 @@ import {
 } from "./assignBoardUtils";
 import {
   AssignmentStatusBadge,
-  ASSIGNMENT_STATUS_SHORT,
   filledSlotSurfaceClass,
 } from "@/features/assignments/assignmentStatusDisplay";
+import { useTranslation } from "@/i18n/I18nProvider";
+import { assignmentStatusLabel } from "@/i18n/labels";
 import type { AssignmentStatus } from "@shared/types";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -87,10 +88,11 @@ function MiniSlot({
   slot: AssignBoardSlot;
   onClick: () => void;
 }) {
+  const { t } = useTranslation();
   const filled = !!slot.assignment;
   const status = slot.assignment?.status as AssignmentStatus | undefined;
   const name = slot.assignment?.official?.full_name?.split(" ")[0] ?? "—";
-  const statusLabel = status ? ASSIGNMENT_STATUS_SHORT[status] : null;
+  const statusLabel = status ? assignmentStatusLabel(status, t, true) : null;
 
   return (
     <button

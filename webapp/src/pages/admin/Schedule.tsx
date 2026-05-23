@@ -32,8 +32,11 @@ import {
   filterGamesByVenueIds,
   groupGamesByVenue,
 } from "@/features/filters/rinkFilterUtils";
+import { useTranslation } from "@/i18n/I18nProvider";
+import { gameCountLabel } from "@/i18n/labels";
 
 export default function Schedule() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { data: profile } = useProfile();
   const navigate = useNavigate();
@@ -42,7 +45,7 @@ export default function Schedule() {
 
   const [messageGame, setMessageGame] = useState<ScheduleGame | null>(null);
   const [incidentGame, setIncidentGame] = useState<ScheduleGame | null>(null);
-  const [filters, setFilters] = useState<ScheduleFilterState>(defaultScheduleFilters);
+  const [filters, setFilters] = useState<ScheduleFilterState>(() => defaultScheduleFilters());
   const [addGameOpen, setAddGameOpen] = useState(false);
   const [editGame, setEditGame] = useState<ScheduleGame | null>(null);
   const [deleteGame, setDeleteGame] = useState<ScheduleGame | null>(null);
@@ -131,15 +134,15 @@ export default function Schedule() {
       <div className="space-y-5 max-w-5xl">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">Schedule</h1>
+            <h1 className="text-xl font-semibold tracking-tight">{t("adminSchedule.title")}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Week view: browse games, add or edit matchups, message crew, and file incidents.
-              Crew slots are read-only here — click a slot or{" "}
-              <span className="font-medium text-foreground">Assign on board</span> to staff games on the{" "}
+              {t("adminSchedule.descriptionIntro")}{" "}
+              <span className="font-medium text-foreground">{t("adminSchedule.assignOnBoard")}</span>{" "}
+              {t("adminSchedule.descriptionMid")}{" "}
               <Link to="/admin/assignment-board" className="text-primary hover:underline">
-                Assignment Board
+                {t("nav.assignmentBoard")}
               </Link>
-              .
+              {t("adminSchedule.descriptionEnd")}
             </p>
           </div>
           <Button
@@ -148,7 +151,7 @@ export default function Schedule() {
             onClick={() => setAddGameOpen(true)}
           >
             <Plus className="h-3.5 w-3.5" />
-            Add game
+            {t("adminSchedule.addGame")}
           </Button>
         </div>
 
@@ -173,7 +176,7 @@ export default function Schedule() {
         ) : isError ? (
           <div className="flex flex-col items-center gap-2 py-16 text-muted-foreground">
             <AlertCircle className="h-6 w-6 text-destructive" />
-            <p className="text-sm">Failed to load schedule.</p>
+            <p className="text-sm">{t("adminSchedule.loadError")}</p>
           </div>
         ) : grouped.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-20 text-muted-foreground">
@@ -183,19 +186,19 @@ export default function Schedule() {
             <div className="text-center">
               <p className="text-sm font-medium">
                 {filters.venueIds !== null && filters.venueIds.length === 0
-                  ? "No rinks selected"
+                  ? t("adminSchedule.empty.noRinksSelected")
                   : filters.venueIds !== null && filters.venueIds.length > 0
-                    ? "No games for selected rinks"
+                    ? t("adminSchedule.empty.noGamesForRinks")
                     : filters.declinedOnly
-                      ? "No games with declined assignments"
-                      : "No games match filters"}
+                      ? t("adminSchedule.empty.noDeclined")
+                      : t("adminSchedule.empty.noMatch")}
               </p>
               <p className="text-xs mt-0.5">
                 {filters.venueIds !== null
-                  ? "Adjust the rink filter or try a wider date range."
+                  ? t("adminSchedule.empty.hintRinks")
                   : filters.declinedOnly
-                    ? "Try a wider date range or another zone."
-                    : "Try a wider date range, another zone, or add a game."}
+                    ? t("adminSchedule.empty.hintDeclined")
+                    : t("adminSchedule.empty.hintDefault")}
               </p>
               <Button
                 size="sm"
@@ -204,7 +207,7 @@ export default function Schedule() {
                 onClick={() => setAddGameOpen(true)}
               >
                 <Plus className="h-3.5 w-3.5" />
-                Add game
+                {t("adminSchedule.addGame")}
               </Button>
             </div>
           </div>
@@ -220,12 +223,14 @@ export default function Schedule() {
                     to={`/admin/assignment-board?date=${group.key}`}
                     className="text-[10px] text-primary hover:underline font-medium"
                   >
-                    Assignment board
+                    {t("schedule.assignmentBoard")}
                   </Link>
                   <span className="text-[10px] text-muted-foreground/50 border-b border-dashed border-border flex-1" />
                   <span className="text-[10px] text-muted-foreground">
-                    {group.rinkGroups.reduce((n, rg) => n + rg.games.length, 0)} game
-                    {group.rinkGroups.reduce((n, rg) => n + rg.games.length, 0) !== 1 ? "s" : ""}
+                    {gameCountLabel(
+                      group.rinkGroups.reduce((n, rg) => n + rg.games.length, 0),
+                      t
+                    )}
                   </span>
                 </div>
                 <div className="space-y-4 pl-2 sm:pl-3 border-l-2 border-border/60 ml-1">

@@ -7,27 +7,30 @@ import { AvailabilityWindowPanel } from "@/features/config/AvailabilityWindowPan
 import { PositionLabelsPanel } from "@/features/config/PositionLabelsPanel";
 import { IncidentNotifyPanel } from "@/features/config/IncidentNotifyPanel";
 import { VenuesPanel } from "@/features/venues/VenuesPanel";
+import { ImportVenuesSection } from "@/features/venues/ImportVenuesSection";
+import { useTranslation } from "@/i18n/I18nProvider";
 
-const AdminConfig = () => (
-  <AdminLayout>
-    <div className="max-w-6xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Configuration</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Pay rates, certification, league rules, rinks, roster display, availability, and incident notifications.
-        </p>
+export default function AdminConfig() {
+  const { t } = useTranslation();
+
+  return (
+    <AdminLayout>
+      <div className="max-w-6xl mx-auto space-y-8">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">{t("config.title")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t("config.description")}</p>
+        </div>
+
+        <PayRatesPanel />
+        <ImportVenuesSection />
+        <VenuesPanel />
+        <PositionLabelsPanel />
+        <RosterDisplayPanel />
+        <AvailabilityWindowPanel />
+        <IncidentNotifyPanel />
+        <CertificationLevelsPanel />
+        <LeagueQualificationsPanel />
       </div>
-
-      <PayRatesPanel />
-      <VenuesPanel />
-      <PositionLabelsPanel />
-      <RosterDisplayPanel />
-      <AvailabilityWindowPanel />
-      <IncidentNotifyPanel />
-      <CertificationLevelsPanel />
-      <LeagueQualificationsPanel />
-    </div>
-  </AdminLayout>
-);
-
-export default AdminConfig;
+    </AdminLayout>
+  );
+}

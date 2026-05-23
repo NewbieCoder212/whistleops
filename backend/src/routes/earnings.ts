@@ -3,14 +3,22 @@ import { serviceDb } from "../db";
 import { dbError, runRoute } from "../lib/handleDb";
 import {
   isGameInSeason,
-  parsePayRates,
   resolveAssignmentPay,
   resolveSeasonBounds,
 } from "../lib/payCalculation";
+import { loadPayRatesForVenueZone } from "../lib/zonePayRates";
 import { requireAuth } from "../middleware/auth";
 import { requireWorkspaceHeader } from "../middleware/workspaceScope";
 
 const earningsRouter = new Hono();
+
+function unwrapVenueZone(
+  venue: { zone_id: string | null } | { zone_id: string | null }[] | null | undefined
+): string | null {
+  if (!venue) return null;
+  if (Array.isArray(venue)) return venue[0]?.zone_id ?? null;
+  return venue.zone_id;
+}
 
 // ── GET /api/earnings/mine ────────────────────────────────────────────────────
 earningsRouter.get("/mine", requireAuth, requireWorkspaceHeader, async (c) =>
@@ -32,19 +40,10 @@ earningsRouter.get("/mine", requireAuth, requireWorkspaceHeader, async (c) =>
       return c.json({ error: { message: "Profile not found", code: "NOT_FOUND" } }, 404);
     }
 
-    const { data: rateSetting } = await serviceDb()
-      .from("settings")
-      .select("value")
-      .eq("workspace_id", workspaceId)
-      .eq("key", "pay_rates")
-      .maybeSingle();
-
-    const payRates = parsePayRates(rateSetting?.value);
-
     const { data: assignments, error } = await serviceDb()
       .from("assignments")
       .select(
-        "id, position, payout_approved, game:games(date_time, league_tier, league_type, is_cash_game)"
+        "id, position, payout_approved, game:games(date_time, league_tier, league_type, is_cash_game, venue:venues(zone_id))"
       )
       .eq("official_id", profile.id)
       .eq("status", "CONFIRMED")
@@ -52,12 +51,22 @@ earningsRouter.get("/mine", requireAuth, requireWorkspaceHeader, async (c) =>
 
     if (error) return dbError(c, error);
 
+    const ratesCache = new Map<string, Awaited<ReturnType<typeof loadPayRatesForVenueZone>>>();
+
+    async function payRatesForGame(venueZoneId: string | null) {
+      const key = venueZoneId ?? "__default__";
+      if (!ratesCache.has(key)) {
+        ratesCache.set(key, await loadPayRatesForVenueZone(workspaceId, venueZoneId));
+      }
+      return ratesCache.get(key)!;
+    }
+
     let game_fees = 0;
     let mileage_payout = 0;
     let mileage_km = 0;
     let approved_count = 0;
     let assignment_count = 0;
-    let cost_per_km = payRates.default.cost_per_km;
+    let cost_per_km = 0.42;
 
     for (const a of assignments ?? []) {
       const rawGame = a.game;
@@ -66,10 +75,13 @@ earningsRouter.get("/mine", requireAuth, requireWorkspaceHeader, async (c) =>
         league_tier: string | null;
         league_type: string | null;
         is_cash_game: boolean | null;
+        venue: { zone_id: string | null } | { zone_id: string | null }[] | null;
       } | null;
       if (!game || !isGameInSeason(game.date_time, season)) continue;
 
       assignment_count++;
+      const venueZoneId = unwrapVenueZone(game.venue);
+      const payRates = await payRatesForGame(venueZoneId);
       const position = a.position as "REF1" | "REF2" | "LINE1" | "LINE2" | "SUPERVISOR";
       const pay = resolveAssignmentPay(
         payRates,

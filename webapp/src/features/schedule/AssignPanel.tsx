@@ -64,10 +64,6 @@ const AVAILABILITY_BADGE_CLASS: Record<AvailabilityStatus, string> = {
   busy: "text-amber-700 dark:text-amber-500",
 };
 
-function interpolate(template: string, vars: Record<string, string>): string {
-  return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => vars[key] ?? "");
-}
-
 type ProfileRow = {
   profile: Profile;
   qualified: boolean;
@@ -285,7 +281,7 @@ export function AssignPanel({
   const { timeStr, dayAbbr } = game ? formatGameTime(game.date_time) : { timeStr: "", dayAbbr: "" };
 
   const requirementBanner = rule
-    ? interpolate(t("assign.requiresLevel"), {
+    ? t("assign.requiresLevel", {
         level: rule.minimumLevel.name,
         league: rule.leagueKey,
       })
