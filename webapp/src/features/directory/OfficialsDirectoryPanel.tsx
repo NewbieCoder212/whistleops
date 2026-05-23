@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search, Loader2 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { useTranslation } from "@/i18n/I18nProvider";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -53,7 +53,7 @@ export function OfficialsDirectoryPanel({ variant = "dashboard" }: Props) {
   const querySearch = search.trim();
   const queryZone = zoneSlug === "all" ? undefined : zoneSlug;
 
-  const { data, isLoading, isError, refetch, isFetching } = useQuery<OfficialDirectoryResponse>({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery<OfficialDirectoryResponse>({
     queryKey: ["officials-directory", queryZone, querySearch],
     queryFn: () =>
       api.get<OfficialDirectoryResponse>(
@@ -122,6 +122,9 @@ export function OfficialsDirectoryPanel({ variant = "dashboard" }: Props) {
         ) : isError ? (
           <div className="space-y-3 px-6 py-12 text-center">
             <p className="text-sm text-destructive">{t("directory.loadError")}</p>
+            {error instanceof ApiError && error.message ? (
+              <p className="text-xs text-muted-foreground max-w-md mx-auto">{error.message}</p>
+            ) : null}
             <Button variant="outline" size="sm" onClick={() => refetch()}>
               {t("common.refresh")}
             </Button>
