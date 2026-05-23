@@ -5,7 +5,8 @@ import { inviteOfficialByEmail } from "../lib/inviteOfficial";
 import { parseJson } from "../lib/validate";
 import { isGameInSeason, resolveStatsDateBounds } from "../lib/payCalculation";
 import { DEFAULT_WORKSPACE_ID } from "../lib/workspace";
-import { requireAuth, requireWorkspaceStaff } from "../middleware/auth";
+import { loadOfficialDirectory } from "../lib/officialDirectory";
+import { requireAuth, requireWorkspace, requireWorkspaceStaff } from "../middleware/auth";
 import { requireWorkspaceHeader } from "../middleware/workspaceScope";
 import {
   BulkOfficialImportPayloadSchema,
@@ -49,6 +50,20 @@ profilesRouter.get("/me", requireAuth, async (c) =>
     if (error) return dbError(c, error);
     if (!data) return c.json({ error: { message: "Profile not found", code: "NOT_FOUND" } }, 404);
     return data;
+  })
+);
+
+/** Contact directory for signed-in workspace members (officials & supervisors). */
+profilesRouter.get("/directory", requireWorkspace, async (c) =>
+  runRoute(c, async () => {
+    const workspaceId = c.get("workspaceId");
+    const zoneSlug = c.req.query("zone")?.trim();
+    const search = c.req.query("search")?.trim();
+    try {
+      return await loadOfficialDirectory(workspaceId, { zoneSlug, search });
+    } catch (e) {
+      return dbError(c, e);
+    }
   })
 );
 
@@ -148,6 +163,7 @@ profilesRouter.post("/bulk", requireWorkspaceHeader, requireWorkspaceStaff, asyn
           email: row.email.trim().toLowerCase(),
           full_name: row.full_name.trim(),
           cell_phone: row.cell_phone?.trim() || null,
+          home_phone: row.home_phone?.trim() || null,
           jersey_number: row.jersey_number?.trim() || null,
           role: roleParsed.data,
           official_type: typeParsed.data ?? null,
@@ -315,6 +331,7 @@ function sanitizeProfileRow<T extends Record<string, unknown>>(body: T): T {
     "full_name",
     "jersey_number",
     "cell_phone",
+    "home_phone",
     "home_address",
     "avatar_url",
   ] as const;

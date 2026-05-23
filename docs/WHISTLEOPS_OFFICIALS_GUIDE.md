@@ -230,7 +230,24 @@ You can filter by zone and league type and see how many games fall in that conte
 
 Open **Profile** to update contact information, see your certification badge, and view **season earnings**: game fees, mileage, and totals. Approved payouts are reflected when finance has used **Approve** on the pay report.
 
-There is no public officials directory in WhistleOps; contact other officials through your association’s usual channels.
+### Officials contact directory
+
+Signed-in users can open **Directory** to find other officials’ contact information:
+
+- **Official portal:** **Directory** in the bottom navigation (`/dashboard/directory`)
+- **Admin Command Center:** **Directory** in the sidebar (`/admin/directory`)
+
+The directory lists officials and supervisors who are marked **List in officials contact directory** on their profile (staff set this when adding or editing someone on **Officials**). Columns:
+
+| Column | Profile field |
+|--------|----------------|
+| Last Name / First Name | Split from **Full Name** |
+| Cell Number | **Cell Number** (`cell_phone`) |
+| Home Phone Number | **Home Phone Number** (`home_phone`) |
+| Email Address | **Email** |
+| Zone | **Home zone** on profile |
+
+Use search to find someone by name, email, or phone. Filter by zone if needed. Staff can hide someone from the directory by turning off the listing toggle on their profile.
 
 ---
 

@@ -219,6 +219,8 @@ export const ProfileSchema = z.object({
   jersey_number: nullableText,
   date_of_birth: nullableText,
   cell_phone: nullableText,
+  home_phone: nullableText,
+  directory_visible: z.boolean().default(true),
   role: RoleEnum,
   official_type: OfficialTypeEnum.nullable().optional(),
   official_level_id: uuid.nullable().optional(),
@@ -241,6 +243,8 @@ export const ProfileCreateSchema = z.object({
   jersey_number: z.string().optional(),
   date_of_birth: z.string().nullable().optional(),
   cell_phone: z.string().optional(),
+  home_phone: z.string().optional(),
+  directory_visible: z.boolean().optional(),
   role: RoleEnum.default("OFFICIAL"),
   official_type: OfficialTypeEnum.optional(),
   official_level_id: uuid.optional(),
@@ -260,6 +264,7 @@ export const BulkOfficialRowSchema = z.object({
   full_name: z.string().min(1),
   email: z.string().email(),
   cell_phone: z.string().optional(),
+  home_phone: z.string().optional(),
   jersey_number: z.string().optional(),
   official_type: OfficialTypeEnum.optional(),
   certification_level: z.string().optional(),
@@ -268,6 +273,22 @@ export const BulkOfficialRowSchema = z.object({
   role: RoleEnum.default("OFFICIAL"),
 });
 export type BulkOfficialRow = z.infer<typeof BulkOfficialRowSchema>;
+
+export const OfficialDirectoryEntrySchema = z.object({
+  last_name: z.string(),
+  first_name: z.string(),
+  cell_phone: nullableText,
+  home_phone: nullableText,
+  email: z.string().email(),
+  zone_name: nullableText,
+});
+export type OfficialDirectoryEntry = z.infer<typeof OfficialDirectoryEntrySchema>;
+
+export const OfficialDirectoryResponseSchema = z.object({
+  count: z.number(),
+  officials: z.array(OfficialDirectoryEntrySchema),
+});
+export type OfficialDirectoryResponse = z.infer<typeof OfficialDirectoryResponseSchema>;
 
 export const BulkOfficialImportPayloadSchema = z.object({
   rows: z.array(BulkOfficialRowSchema),

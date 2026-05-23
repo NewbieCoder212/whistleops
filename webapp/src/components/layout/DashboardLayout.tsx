@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Shield, LogOut, CalendarDays, CalendarCheck, User } from "lucide-react";
+import { Shield, LogOut, CalendarDays, CalendarCheck, User, BookUser } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 const bottomNavKeys = [
   { labelKey: "nav.schedule", href: "/dashboard/schedule", icon: CalendarDays },
   { labelKey: "nav.availability", href: "/dashboard/availability", icon: CalendarCheck },
+  { labelKey: "nav.directory", href: "/dashboard/directory", icon: BookUser },
   { labelKey: "nav.profile", href: "/dashboard/profile", icon: User },
 ] as const;
 
@@ -55,7 +56,10 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       </header>
 
       <main className="flex-1 overflow-auto pb-24">
-        <div className="max-w-xl mx-auto px-4 py-6">
+        <div className={cn(
+          "mx-auto px-4 py-6",
+          pathname.startsWith("/dashboard/directory") ? "max-w-6xl" : "max-w-xl"
+        )}>
           <div className="mb-4">
             <WorkspaceSwitcher className="rounded-lg border border-border bg-card px-3 py-2" />
           </div>

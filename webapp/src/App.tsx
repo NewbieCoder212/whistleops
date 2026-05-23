@@ -8,6 +8,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AdminRoute } from "@/components/AdminRoute";
 import Login from "./pages/Login";
 import AdminDashboard from "./pages/admin/Dashboard";
+import AdminDirectory from "./pages/admin/Directory";
 import Officials from "./pages/admin/Officials";
 import AdminConfig from "./pages/admin/AdminConfig";
 import ImportGames from "./pages/admin/ImportGames";
@@ -19,6 +20,7 @@ import OfficialSchedule from "./pages/dashboard/Schedule";
 import OfficialHome from "./pages/dashboard/Home";
 import Availability from "./pages/dashboard/Availability";
 import OfficialProfile from "./pages/dashboard/Profile";
+import OfficialDirectory from "./pages/dashboard/Directory";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,6 +41,7 @@ const App = () => (
             <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/admin/officials" element={<Officials />} />
+            <Route path="/admin/directory" element={<AdminDirectory />} />
             <Route path="/admin/config" element={<AdminConfig />} />
             <Route path="/admin/import-games" element={<ImportGames />} />
             <Route path="/admin/schedule" element={<Schedule />} />
@@ -53,6 +56,7 @@ const App = () => (
             <Route path="/dashboard/home" element={<Navigate to="/dashboard/schedule" replace />} />
             <Route path="/dashboard/schedule" element={<OfficialSchedule />} />
             <Route path="/dashboard/availability" element={<Availability />} />
+            <Route path="/dashboard/directory" element={<OfficialDirectory />} />
             <Route path="/dashboard/profile" element={<OfficialProfile />} />
             {/* Legacy — keep it working */}
             <Route path="/dashboard/home-old" element={<OfficialHome />} />

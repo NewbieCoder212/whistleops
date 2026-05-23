@@ -32,6 +32,8 @@ type FormValues = {
   full_name: string;
   email: string;
   cell_phone: string;
+  home_phone: string;
+  directory_visible: boolean;
   jersey_number: string;
   date_of_birth: string;
   role: "ADMIN" | "ASSIGNOR" | "FINANCE" | "OFFICIAL" | "SUPERVISOR";
@@ -80,6 +82,8 @@ export function OfficialDrawer({ open, onClose, profile }: Props) {
       full_name: "",
       email: "",
       cell_phone: "",
+      home_phone: "",
+      directory_visible: true,
       jersey_number: "",
       date_of_birth: "",
       role: "OFFICIAL",
@@ -102,6 +106,8 @@ export function OfficialDrawer({ open, onClose, profile }: Props) {
         full_name: profile?.full_name ?? "",
         email: profile?.email ?? "",
         cell_phone: profile?.cell_phone ?? "",
+        home_phone: profile?.home_phone ?? "",
+        directory_visible: profile?.directory_visible ?? true,
         jersey_number: profile?.jersey_number ?? "",
         date_of_birth: profile?.date_of_birth ?? "",
         role: profile?.role ?? "OFFICIAL",
@@ -133,6 +139,8 @@ export function OfficialDrawer({ open, onClose, profile }: Props) {
       full_name: data.full_name.trim() || undefined,
       email: data.email.trim(),
       cell_phone: data.cell_phone.trim() || undefined,
+      home_phone: data.home_phone.trim() || undefined,
+      directory_visible: data.directory_visible,
       jersey_number: data.jersey_number.trim() || undefined,
       date_of_birth: dob || (opts?.forUpdate ? null : undefined),
       role: data.role,
@@ -233,13 +241,21 @@ export function OfficialDrawer({ open, onClose, profile }: Props) {
                 <p className="text-xs text-destructive">{errors.email.message}</p>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="cell_phone">Cell Phone</Label>
+                <Label htmlFor="cell_phone">Cell Number</Label>
                 <Input
                   id="cell_phone"
-                  placeholder="(902) 555-0123"
+                  placeholder="(506) 555-0123"
                   {...register("cell_phone")}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="home_phone">Home Phone Number</Label>
+                <Input
+                  id="home_phone"
+                  placeholder="(506) 555-0124"
+                  {...register("home_phone")}
                 />
               </div>
               <div className="space-y-1.5">
@@ -363,6 +379,23 @@ export function OfficialDrawer({ open, onClose, profile }: Props) {
                       </Select>
                     )}
                   />
+                </div>
+
+                <div className="flex items-center gap-2 rounded-md border border-border px-3 py-2.5">
+                  <Controller
+                    name="directory_visible"
+                    control={control}
+                    render={({ field }) => (
+                      <Checkbox
+                        id="directory-visible"
+                        checked={field.value}
+                        onCheckedChange={(v) => field.onChange(!!v)}
+                      />
+                    )}
+                  />
+                  <Label htmlFor="directory-visible" className="text-sm font-normal">
+                    List in officials contact directory
+                  </Label>
                 </div>
               </>
             )}

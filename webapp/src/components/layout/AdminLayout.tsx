@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Settings, Shield, ChevronRight, Users, Upload,
-  CalendarDays, DollarSign, LogOut, LayoutDashboard, Menu, X, CalendarRange, LayoutGrid,
+  CalendarDays, DollarSign, LogOut, LayoutDashboard, Menu, X, CalendarRange, LayoutGrid, BookUser,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -25,6 +25,7 @@ const navKeys = [
   },
   { labelKey: "nav.availability", descKey: "navDesc.availability", href: "/admin/availability", icon: CalendarRange },
   { labelKey: "nav.officials", descKey: "navDesc.officials", href: "/admin/officials", icon: Users },
+  { labelKey: "nav.directory", descKey: "navDesc.directory", href: "/admin/directory", icon: BookUser },
   { labelKey: "nav.finance", descKey: "navDesc.finance", href: "/admin/finance", icon: DollarSign },
   { labelKey: "nav.importGames", descKey: "navDesc.importGames", href: "/admin/import-games", icon: Upload },
   { labelKey: "nav.config", descKey: "navDesc.config", href: "/admin/config", icon: Settings },

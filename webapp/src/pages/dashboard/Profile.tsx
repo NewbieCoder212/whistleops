@@ -106,7 +106,8 @@ export default function OfficialProfile() {
           </div>
           <div className="px-4">
             <InfoRow icon={Mail} label={t("profile.fields.email")} value={profile?.email} />
-            <InfoRow icon={Phone} label={t("profile.fields.phone")} value={profile?.cell_phone} />
+            <InfoRow icon={Phone} label={t("profile.fields.cellNumber")} value={profile?.cell_phone} />
+            <InfoRow icon={Phone} label={t("profile.fields.homePhone")} value={profile?.home_phone} />
             <InfoRow icon={Hash} label={t("profile.fields.jersey")} value={profile?.jersey_number} />
             <InfoRow icon={MapPin} label={t("profile.fields.homeAddress")} value={profile?.home_address} />
           </div>
