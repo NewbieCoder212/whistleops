@@ -122,7 +122,7 @@ export const requireAdmin: MiddlewareHandler = async (c, next) => {
     if (error) {
       return c.json({ error: { message: error.message, code: "PROFILE_LOOKUP_FAILED" } }, 500);
     }
-    const adminRoles = ["ADMIN", "ASSIGNOR", "SUPERVISOR", "FINANCE"];
+    const adminRoles = ["ADMIN", "ASSIGNOR", "FINANCE"];
     if (!data || !adminRoles.includes(data.role)) {
       return c.json({ error: { message: "Admin role required", code: "FORBIDDEN" } }, 403);
     }
@@ -200,7 +200,7 @@ export const requireWorkspace: MiddlewareHandler = async (c, next) => {
   await next();
 };
 
-/** Staff actions within a workspace (assignor, admin, finance, supervisor). */
+/** Staff actions within a workspace (assignor, admin, finance). */
 export const requireWorkspaceStaff: MiddlewareHandler = async (c, next) => {
   const err = await loadWorkspaceContext(c);
   if (err) return err;

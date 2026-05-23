@@ -2,9 +2,7 @@ import { Navigate, Outlet } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
-
-const ADMIN_ROLES = ["ADMIN", "ASSIGNOR", "SUPERVISOR", "FINANCE"] as const;
-type AdminRole = typeof ADMIN_ROLES[number];
+import { canAccessAdminPortal } from "@/lib/adminPortalAccess";
 
 export function AdminRoute() {
   const { session, loading: authLoading } = useAuth();
@@ -32,7 +30,7 @@ export function AdminRoute() {
     );
   }
 
-  if (profile && !ADMIN_ROLES.includes(profile.role as AdminRole)) {
+  if (profile && !canAccessAdminPortal(profile.role)) {
     return <Navigate to="/dashboard/schedule" replace />;
   }
 

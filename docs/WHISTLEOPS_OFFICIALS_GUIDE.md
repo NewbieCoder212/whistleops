@@ -12,12 +12,12 @@ Everyone signs in at the same login page. After sign-in, WhistleOps sends you to
 
 | If your role is… | You use… | Main tasks |
 |------------------|----------|------------|
-| **Official** | Official Portal | My Schedule, availability, profile and earnings |
-| **Assignor**, **Admin**, **Supervisor**, or **Finance** | Admin Command Center | Roster, schedule, assignments, finance, configuration |
+| **Official** or **Supervisor** | Official Portal | My Schedule, availability, profile and earnings |
+| **Assignor**, **Admin**, or **Finance** | Admin Command Center | Roster, schedule, assignments, finance, configuration |
 
-**Note:** Assignor, Admin, Supervisor, and Finance currently share the same admin menu. Finance does not have a separate trimmed-down screen set yet.
+**Note:** Assignor, Admin, and Finance share the same admin menu. Finance does not have a separate trimmed-down screen set yet. Supervisors sign in like officials but can still be assigned to the Supervisor slot on games.
 
-The app is available in **English** and **French** — use the language toggle on the login page or in the sidebar/header.
+The app is available in **English** and **French** — use the language toggle on the login page or in the sidebar/header. Labels, buttons, filters, and status names translate; zone names stay as stored in the database.
 
 ---
 
@@ -25,14 +25,16 @@ The app is available in **English** and **French** — use the language toggle o
 
 Users with access to the **Admin Command Center** can:
 
+- View a **Dashboard** with season stats, today’s games, and quick links (zone staff see a welcome message with their home zone)
 - Invite and manage officials on the roster
 - Set certification levels and league qualification rules (minimum level per league)
-- Configure pay rates, rinks, position labels, roster columns, availability windows, and incident notification emails
-- Import games from CSV or add games manually
-- Assign officials to games on the schedule (Referee 1, Referee 2, Lines 1, Lines 2, Supervisor)
+- Configure pay rates (provincial default and **per-zone** rates), rinks, position labels, roster columns, availability windows, and incident notification emails
+- Import games, officials, and **rinks** from CSV or add records manually
+- Assign officials on the **Assignment Board** (day view with availability) and review the **Schedule** week view
+- **Publish** a staffed day so officials receive assignments by email
 - Email assigned crew members about a game
 - Review all officials’ availability in a weekly overview
-- Run the seasonal pay report and approve payouts
+- Run the seasonal pay report and approve payouts (province-wide for admins; **home zone only** for regional assignors and finance staff)
 - Submit incident reports for games
 
 ---
@@ -49,8 +51,8 @@ The first step in a season is building your roster: add officials, set their cer
 4. Enter the official’s name, email, phone, and other details.
 5. Choose a **role**:
    - **Official** — referee or linesman who receives game assignments
-   - **Supervisor** — can be assigned to the Supervisor slot on games
-   - **Assignor**, **Admin**, **Supervisor** (staff), or **Finance** — staff access to the admin area
+   - **Supervisor** — uses the official portal; can be assigned to the Supervisor slot on games
+   - **Assignor**, **Admin**, or **Finance** — staff access to the admin area
 6. For officials and supervisors, set **certification level** (Level 1 through Level 6).
 7. Optionally turn on **Send invite** so the official receives an email to create their password and sign in.
 8. Save.
@@ -74,15 +76,15 @@ WhistleOps does **not** use separate “referee for U13” vs “linesman for U1
 
 1. Each official has a **certification level** on their profile.
 2. Under **Configuration**, you set **league qualifications** — the minimum certification level required for each league name (matched to the game’s league tier or league type).
-3. When you assign someone on the **Schedule**, the system warns you if they are below the minimum for that game. You should not assign under-qualified officials.
+3. When you assign someone on the **Assignment Board**, the system warns you if they are below the minimum for that game. You should not assign under-qualified officials.
 
 Association timekeepers are not part of WhistleOps; only on-ice officiating positions and Supervisor are scheduled here.
 
 ---
 
-## Importing games
+## Importing games and venues
 
-Games can be added in bulk or one at a time.
+Games and rinks can be added in bulk or one at a time.
 
 ### Bulk import from CSV
 
@@ -102,7 +104,20 @@ Venues that are marked as **not assignable** in Configuration are skipped during
 
 ### Manage rinks (venues)
 
-Under **Configuration**, open the rinks/venues panel to add or edit arenas, addresses, zones, and whether a venue is assignable for scheduling.
+Under **Configuration**, open the **Rinks / Venues** panel to add or edit arenas, addresses, zones, and whether a venue is assignable for scheduling.
+
+### Bulk import rinks from CSV
+
+If you have a spreadsheet of arenas (for example exported from GrayJay):
+
+1. Go to **Configuration** → **Rinks / Venues**.
+2. Find **Import Rinks (CSV)**.
+3. Upload your CSV file. Expected columns include **Venue Name**, **Zone** (1–9), **Address**, **City**, **Province/State**, and **Postal/ZIP Code**.
+4. Review the preview and fix any rows flagged with errors.
+5. Optionally turn on **Update existing** to refresh venues that already match by name.
+6. Confirm the import.
+
+Imported rinks are linked to the correct NB zone when the zone column is present. Assignable rinks appear on the Schedule and Assignment Board; non-assignable rinks are skipped during game import.
 
 ---
 
@@ -234,21 +249,37 @@ Use this when filling the schedule to avoid assigning someone who marked themsel
 
 ## Pay rates and finance
 
+WhistleOps supports **provincial default** pay rates and **per-zone** rate tables. Game fees on the pay report use the rates for the **zone where the game is played** (the venue’s zone). If a zone has no custom rates yet, the provincial default applies.
+
+### Who can see and edit what
+
+| Role | Pay rates (Configuration) | Pay report (Finance) |
+|------|---------------------------|----------------------|
+| **Admin** | Provincial default **or** any zone | All zones (filter by zone) or one zone |
+| **Assignor** | Home zone only | Home zone only |
+| **Finance** | Home zone only | Home zone only |
+
+Assignors and finance staff must have a **home zone** on their profile to access pay rates and the pay report. Admins manage province-wide settings and can switch zones.
+
 ### Configure pay rates
 
 1. Go to **Configuration**.
 2. Open **Pay rates**.
-3. Set default fees for each position (Referee 1, Referee 2, Lines 1, Lines 2, Supervisor).
-4. Add overrides for specific **league types** and **tiers** if needed.
-5. Set **mileage** (cents per kilometre) for travel reimbursement.
+3. **Admins:** choose **Provincial default** or a specific **zone**, then edit that rate table.
+4. **Assignors / Finance:** edit rates for your home zone only.
+5. Set default fees for each position (Referee 1, Referee 2, Lines 1, Lines 2, Supervisor).
+6. Add overrides for specific **league types** and **tiers** if needed.
+7. Set **mileage** (cents per kilometre) for travel reimbursement.
 
 Rates apply to **confirmed** assignments when the pay report is generated.
 
 ### Pay report and approvals
 
 1. Go to **Finance** (Pay Report) in the admin sidebar.
-2. Review each official’s season totals: games, fees, mileage, and total due.
-3. Click **Approve** for an official when their season amount is finalized.
+2. **Admins:** use the zone filter to view one zone or all zones.
+3. **Assignors / Finance:** the report is limited to your home zone automatically.
+4. Review each official’s season totals: games, fees, mileage, and total due.
+5. Click **Approve** for an official when their season amount is finalized.
 
 Approve locks those assignments as payout-approved. It is a **lock-in for payroll**, not a record of a bank transfer or cash payment inside the app.
 
@@ -283,15 +314,30 @@ Separate multiple email addresses with commas.
 
 ---
 
+## Admin dashboard
+
+After sign-in, staff with admin access land on **Dashboard**.
+
+- **Welcome message** — shows your first name when available.
+- **Home zone badge** — if your profile has a home zone (typical for regional assignors and finance staff), the zone name appears beside the welcome (for example, Zone 5 — Moncton Area).
+- **Context subtitle** — zone staff see zone-focused text; provincial admins see province-wide text.
+- **Stats** — upcoming games, games needing assignment, confirmed slots, and official count.
+- **Today’s games** — quick list with status; link through to Schedule.
+- **Quick links** — Schedule, Finance (when your role has payroll access), and Import Games.
+
+Use the dashboard as a morning check-in before opening the Assignment Board or Schedule.
+
+---
+
 ## Roles reference
 
 | Role | Portal | Typical use |
 |------|--------|-------------|
-| **Official** | Official | Accept assignments, set availability, view earnings |
-| **Assignor** | Admin | Day-to-day scheduling and assignments |
-| **Admin** | Admin | Full configuration and roster control |
+| **Official** | Official | Accept assignments, set availability, calendar subscribe, view earnings |
+| **Assignor** | Admin | Day-to-day scheduling on the Assignment Board; zone-scoped pay access when also Finance |
+| **Admin** | Admin | Full configuration, all zones, provincial default pay rates |
 | **Supervisor** | Admin (profile may also be on-ice) | Same admin access; may be assigned as Supervisor on games |
-| **Finance** | Admin | Pay report and pay rate configuration (same nav as assignor today) |
+| **Finance** | Admin | Pay report and pay rates for **home zone** (same nav as assignor today) |
 
 ---
 
@@ -308,9 +354,11 @@ Officials still accept assignments and view games in WhistleOps; scoring integra
 | Task | Where to go |
 |------|-------------|
 | Dashboard stats | Admin → Dashboard |
-| Assign officials | Admin → Schedule |
+| Week view / game cards | Admin → Schedule |
+| Assign officials (day board) | Admin → Assignment Board |
 | Roster | Admin → Officials |
 | Import games | Admin → Import Games |
+| Import rinks | Admin → Configuration → Rinks / Venues |
 | Everyone’s availability | Admin → Availability |
 | Pay report | Admin → Finance |
 | All settings | Admin → Configuration |
@@ -320,9 +368,10 @@ Officials still accept assignments and view games in WhistleOps; scoring integra
 | Task | Where to go |
 |------|-------------|
 | Pending / upcoming games | Official → Schedule |
+| Add to calendar (ICS) | Official → Schedule → Add to calendar |
 | Set hours available | Official → Availability |
 | Earnings and profile | Official → Profile |
 
 ---
 
-*Updated: May 20, 2026*
+*Updated: May 23, 2026*

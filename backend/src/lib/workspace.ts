@@ -3,7 +3,8 @@ import { serviceDb } from "../db";
 
 export const DEFAULT_WORKSPACE_ID = "00000000-0000-4000-8000-000000000001";
 
-const STAFF_ROLES = ["ADMIN", "ASSIGNOR", "FINANCE", "SUPERVISOR"] as const;
+/** Roles with Admin Command Center access (assignor, admin, finance). Supervisors use the official portal. */
+const STAFF_ROLES = ["ADMIN", "ASSIGNOR", "FINANCE"] as const;
 
 /** Roles that may open Finance & Payroll (supervisors excluded). */
 const PAYROLL_ROLES = ["ADMIN", "ASSIGNOR", "FINANCE"] as const;

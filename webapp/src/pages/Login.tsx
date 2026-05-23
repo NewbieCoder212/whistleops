@@ -9,8 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { Profile } from "@shared/types";
-
-const ADMIN_ROLES = ["ADMIN", "ASSIGNOR", "SUPERVISOR", "FINANCE"];
+import { canAccessAdminPortal } from "@/lib/adminPortalAccess";
 
 export default function Login() {
   const { signIn } = useAuth();
@@ -45,13 +44,13 @@ export default function Login() {
     // Requires /api/profiles/me on server (Vercel path restore — docs/VERCEL_DEPLOY.md)
     try {
       const profile = await api.get<Profile>("/api/profiles/me");
-      const isStaff = ADMIN_ROLES.includes(profile.role);
-      const dest = isStaff ? "/admin/dashboard" : "/dashboard/schedule";
-      // Staff always land on admin portal; don't send admins back to /dashboard from `from`.
+      const useAdminPortal = canAccessAdminPortal(profile.role);
+      const dest = useAdminPortal ? "/admin/dashboard" : "/dashboard/schedule";
+      // Admin portal roles always land on admin; don't send them back to /dashboard from `from`.
       const useFrom =
         from &&
         from !== "/login" &&
-        !(isStaff && from.startsWith("/dashboard"));
+        !(useAdminPortal && from.startsWith("/dashboard"));
       navigate(useFrom ? from : dest, { replace: true });
     } catch (err) {
       let msg = "Signed in, but your profile could not be loaded. Please try again.";
