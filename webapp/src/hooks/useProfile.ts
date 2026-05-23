@@ -5,8 +5,9 @@ import type { Profile } from "@shared/types";
 
 export function useProfile() {
   const { session } = useAuth();
+  const userId = session?.user?.id;
   return useQuery<Profile>({
-    queryKey: ["profile", "me"],
+    queryKey: ["profile", "me", userId],
     queryFn: () => api.get<Profile>("/api/profiles/me"),
     enabled: !!session,
     staleTime: 5 * 60 * 1000,

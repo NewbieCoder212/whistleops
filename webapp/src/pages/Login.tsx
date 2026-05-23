@@ -45,10 +45,14 @@ export default function Login() {
     // Requires /api/profiles/me on server (Vercel path restore — docs/VERCEL_DEPLOY.md)
     try {
       const profile = await api.get<Profile>("/api/profiles/me");
-      const dest = ADMIN_ROLES.includes(profile.role)
-        ? "/admin/dashboard"
-        : "/dashboard/schedule";
-      navigate(from && from !== "/login" ? from : dest, { replace: true });
+      const isStaff = ADMIN_ROLES.includes(profile.role);
+      const dest = isStaff ? "/admin/dashboard" : "/dashboard/schedule";
+      // Staff always land on admin portal; don't send admins back to /dashboard from `from`.
+      const useFrom =
+        from &&
+        from !== "/login" &&
+        !(isStaff && from.startsWith("/dashboard"));
+      navigate(useFrom ? from : dest, { replace: true });
     } catch (err) {
       let msg = "Signed in, but your profile could not be loaded. Please try again.";
       if (err instanceof ApiError) {
